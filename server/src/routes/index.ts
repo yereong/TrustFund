@@ -2,6 +2,8 @@
 import { Router } from "express";
 import authRouter from "./auth";
 import usersRouter from "./users";
+import projectsRouter from "./projects";
+import uploadRouter from "./upload";
 
 const router = Router();
 
@@ -13,8 +15,8 @@ router.get("/", (_req, res) => {
 // Auth 관련
 router.use("/auth", authRouter);
 router.use("/users", usersRouter);
+router.use("/projects", projectsRouter);
+router.use("/upload", uploadRouter);
 
-// 나중에 projects, funding 등도 이렇게 추가
-// router.use("/projects", projectsRouter);
 
 export default router;
