@@ -124,7 +124,7 @@ export default function MainPage() {
                   <img
                     src={p.representativeImage || "/sample1.jpg"}
                     alt={p.title}
-                    className="object-cover"
+                    className="object-cover h-full w-full"
                   />
                 </div>
 
