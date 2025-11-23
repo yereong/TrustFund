@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft, Edit3, LogOut } from "lucide-react";
@@ -48,6 +49,7 @@ export default function MyPage() {
   const { userInfo } = useWeb3AuthUser();
   const { disconnect } = useWeb3AuthDisconnect();
   const [activeTab, setActiveTab] = useState<"myProjects" | "myFundings" | "profile">("myProjects");
+  const router = useRouter();
 
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-white font-[Inter]">
@@ -109,7 +111,7 @@ export default function MyPage() {
 
             {/* 로그아웃 */}
             <button
-              onClick={() => disconnect()}
+              onClick={() => {disconnect(); router.push('/');}}
               className="mt-5 w-full flex items-center justify-center gap-2 text-sm text-white/70 bg-white/5 border border-white/20 rounded-xl py-2 hover:bg-white/10 transition"
             >
               <LogOut size={16} />
