@@ -4,11 +4,16 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, ImageIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function CreateProject() {
+  const router = useRouter();
+
   const [milestones, setMilestones] = useState([{ id: 1, name: "" }]);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const addMilestone = () => {
     setMilestones([...milestones, { id: Date.now(), name: "" }]);
@@ -44,11 +49,94 @@ export default function CreateProject() {
     };
   }, [thumbnailFile]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // TODO: 여기서 폼 데이터 + thumbnailFile을 FormData로 묶어서
-    // 백엔드 또는 IPFS 업로드 API로 전송하면 됨.
-    console.log("submit!");
+    if (submitting) return;
+
+    try {
+      setSubmitting(true);
+      setErrorMessage(null);
+
+      const formData = new FormData(e.currentTarget);
+      const title = (formData.get("title") as string)?.trim();
+      const targetAmountRaw = formData.get("targetAmount") as string;
+      const expectedEnd = formData.get("expectedEnd") as string;
+      const description = (formData.get("description") as string)?.trim();
+
+      const targetAmount = Number(targetAmountRaw);
+
+      // 간단 검증
+      if (!title || !targetAmount || !description) {
+        setErrorMessage("제목, 목표 금액, 설명은 필수입니다.");
+        return;
+      }
+
+      // 1️⃣ 썸네일 이미지가 있으면 먼저 Pinata(IPFS)에 업로드
+      let representativeImage: string | null = null;
+
+      if (thumbnailFile) {
+        const imgFormData = new FormData();
+        imgFormData.append("file", thumbnailFile);
+
+        const imgRes = await fetch("http://localhost:4000/api/upload/image", {
+          method: "POST",
+          body: imgFormData,
+          credentials: "include", // JWT 쿠키 사용 중이면 유지
+        });
+
+        if (!imgRes.ok) {
+          const data = await imgRes.json().catch(() => ({}));
+          throw new Error(
+            data.message ?? "이미지 업로드 중 오류가 발생했습니다."
+          );
+        }
+
+        const imgData = await imgRes.json();
+        representativeImage = imgData.url; // 👈 IPFS 게이트웨이 URL
+      }
+
+      // 2️⃣ 마일스톤 데이터 변환 (백엔드에서 기대하는 형태)
+      const milestonePayload = milestones
+        .map(
+          (m, idx) =>
+            m.name.trim() && { title: m.name.trim(), order: idx + 1 }
+        )
+        .filter(Boolean);
+
+      // 3️⃣ 프로젝트 생성 요청
+      const payload = {
+        title,
+        targetAmount,
+        expectedCompletionDate: expectedEnd || undefined,
+        description,
+        representativeImage, // 👈 이제 null이 아니라 IPFS URL이 들어감
+        milestones: milestonePayload,
+      };
+
+      const res = await fetch("http://localhost:4000/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // JWT 쿠키 포함
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          data.message ?? "프로젝트 생성 중 오류가 발생했습니다."
+        );
+      }
+
+      // 성공 시 메인 화면으로 이동 (또는 상세 페이지로 이동도 가능)
+      router.push("/main");
+    } catch (err: any) {
+      console.error("프로젝트 생성 에러:", err);
+      setErrorMessage(err.message ?? "알 수 없는 에러가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -73,6 +161,10 @@ export default function CreateProject() {
       {/* 메인 콘텐츠 */}
       <main className="max-w-4xl mx-auto px-5 py-10 space-y-10">
         <h2 className="text-3xl font-bold mb-4">프로젝트 정보 입력</h2>
+
+        {errorMessage && (
+          <p className="text-sm text-red-400 mb-2">{errorMessage}</p>
+        )}
 
         <form
           onSubmit={handleSubmit}
@@ -204,9 +296,10 @@ export default function CreateProject() {
           {/* 제출 버튼 */}
           <button
             type="submit"
-            className="w-full bg-white text-black py-4 rounded-xl font-semibold hover:bg-white/90 transition"
+            disabled={submitting}
+            className="w-full bg-white text-black py-4 rounded-xl font-semibold hover:bg-white/90 disabled:opacity-60 disabled:cursor-not-allowed transition"
           >
-            프로젝트 등록하기
+            {submitting ? "등록 중..." : "프로젝트 등록하기"}
           </button>
         </form>
       </main>
