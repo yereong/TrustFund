@@ -1,34 +1,31 @@
 // src/routes/users.ts
 import { Router } from "express";
 import { User } from "../models/User";
+import { requireAuth, AuthRequest } from "../middleware/requireAuth";
 
 const router = Router();
 
 /**
- * Web3Auth info 저장/업데이트
+ * 추가 회원 정보 저장/업데이트
  *
  * POST /api/users/info
  */
-router.post("/info", async (req, res) => {
+router.post("/info", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const {
-      walletAddress,
-      email,
-      name
-    } = req.body || {};
+    const { email, name } = req.body || {};
 
+    // walletAddress는 클라이언트 body에서 읽으면 위험!
+    const walletAddress = req.auth?.walletAddress;
     if (!walletAddress) {
-      return res.status(400).json({ message: "walletAddress는 필수입니다." });
+      return res.status(400).json({ message: "인증된 유저가 아닙니다." });
     }
 
     const lowerWallet = walletAddress.toLowerCase();
-
     const now = new Date();
 
     const updatedUser = await User.findOneAndUpdate(
       { walletAddress: lowerWallet },
       {
-        walletAddress: lowerWallet,
         email,
         name,
         lastLoginAt: now,
@@ -39,7 +36,6 @@ router.post("/info", async (req, res) => {
         setDefaultsOnInsert: true,
       }
     ).lean();
-
 
     return res.status(200).json({
       user: updatedUser,
