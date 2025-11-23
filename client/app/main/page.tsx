@@ -19,11 +19,14 @@ export default function MainPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const observerRef = useRef<HTMLDivElement | null>(null);
+  const isFetchingRef = useRef(false); // ✅ 실제 fetch 중인지 동기 관리
 
   const fetchProjects = useCallback(async () => {
-    if (loading || !hasMore) return;
+    // 여기서 loading 대신 ref 사용
+    if (isFetchingRef.current || !hasMore) return;
 
     try {
+      isFetchingRef.current = true; // ✅ 즉시 반영
       setLoading(true);
       setErrorMessage(null);
 
@@ -40,6 +43,7 @@ export default function MainPage() {
       }
 
       const data = await res.json();
+      console.log("불러온 프로젝트 데이터:", data);
 
       const newProjects: Project[] = data.projects || [];
 
@@ -54,9 +58,10 @@ export default function MainPage() {
       console.error("프로젝트 목록 로딩 에러:", err);
       setErrorMessage(err.message ?? "알 수 없는 에러가 발생했습니다.");
     } finally {
+      isFetchingRef.current = false; // ✅ 요청 끝
       setLoading(false);
     }
-  }, [page, loading, hasMore]);
+  }, [page, hasMore]);
 
   useEffect(() => {
     fetchProjects();
@@ -116,10 +121,9 @@ export default function MainPage() {
                 onClick={() => router.push(`/project/${p._id}`)}
               >
                 <div className="relative h-48 w-full">
-                  <Image
+                  <img
                     src={p.representativeImage || "/sample1.jpg"}
                     alt={p.title}
-                    fill
                     className="object-cover"
                   />
                 </div>
