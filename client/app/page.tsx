@@ -8,19 +8,58 @@ import {
   useWeb3AuthConnect,
   useWeb3AuthDisconnect,
   useWeb3AuthUser,
+  useWeb3Auth,
 } from "@web3auth/modal/react";
-
+import { BrowserProvider } from "ethers";
 
 export default function Home() {
   const { connect, loading, isConnected, error, } = useWeb3AuthConnect();
   const { disconnect } = useWeb3AuthDisconnect();
   const { userInfo } = useWeb3AuthUser();
+  const { provider, status } = useWeb3Auth();
   const router = useRouter();
+
   useEffect(() => {
-    if (isConnected) {
-      router.push("/main");
-    }
-  }, [isConnected, router]);
+    const syncUserToBackend = async () => {
+      // 아직 로그인 안 됐거나, provider / userInfo 없으면 스킵
+      if (!isConnected || !provider || !userInfo) return;
+
+      try {
+        // 1) EOA(지갑 주소) 가져오기
+        // ethers v6
+        const web3Provider = new BrowserProvider(provider as any);
+        const signer = await web3Provider.getSigner();
+        const walletAddress = await signer.getAddress();
+
+        // 2) Web3Auth에서 받은 유저 정보 정리
+        const payload = {
+          walletAddress,
+          email: userInfo.email,
+          name: userInfo.name,
+          profileImage: userInfo.profileImage,
+         
+        };
+
+        // 3) 백엔드로 전송
+        await fetch("http://localhost:4000/api/auth/web3", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        // 4) 동기화 끝나면 메인 페이지로 이동
+        router.push("/main");
+      } catch (e) {
+        console.error("유저 동기화 중 에러:", e);
+        // 실패해도 일단 메인으로 보내고 싶으면 여기서도 push 가능
+        // router.push("/main");
+      }
+    };
+
+    syncUserToBackend();
+  }, [isConnected, provider, userInfo, router]);
 
   return (
     <div className="relative min-h-screen w-full flex flex-col justify-center items-center overflow-hidden">
