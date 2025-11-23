@@ -41,7 +41,7 @@ export default function Home() {
         };
 
         // 3) 백엔드로 전송
-        await fetch("http://localhost:4000/api/auth/web3", {
+        const res = await fetch("http://localhost:4000/api/auth/web3", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -49,8 +49,13 @@ export default function Home() {
           body: JSON.stringify(payload),
         });
 
-        // 4) 동기화 끝나면 메인 페이지로 이동
-        router.push("/main");
+        const data = await res.json();
+        console.log("백엔드 동기화 응답:", data);
+
+        if (data.redirect) {
+          router.push(data.redirect);
+        }
+
       } catch (e) {
         console.error("유저 동기화 중 에러:", e);
         // 실패해도 일단 메인으로 보내고 싶으면 여기서도 push 가능
