@@ -90,9 +90,12 @@ router.get("/", async (req, res) => {
  *
  * GET /api/projects/:id
  */
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
+    const userId = req.auth?.userId;
+    const userWallet = req.auth?.walletAddress;
+
 
     const project = await Project.findById(id).lean();
 
@@ -100,7 +103,49 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ message: "프로젝트를 찾을 수 없습니다." });
     }
 
-    return res.status(200).json({ project });
+     const isOwner =
+      !!(
+        (userId && project.ownerUser?.toString() === userId.toString()) ||
+        (userWallet && project.ownerWallet === userWallet)
+      );
+
+       let hasParticipated = false;
+       
+
+    if (userId || userWallet) {
+      for (const milestone of project.milestones) {
+        for (const vote of milestone.votes) {
+          const votedByUser =
+            (userId && vote.voterUser?.toString() === userId.toString()) ||
+            (userWallet && vote.voterWallet === userWallet);
+
+          if (votedByUser) {
+            hasParticipated = true;
+            break;
+          }
+        }
+        if (hasParticipated) break;
+      }
+    }
+
+     const totalFunding = await Investment.aggregate([
+      { $match: { project: project._id } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+
+    const currentAmount = totalFunding[0]?.total || 0;
+
+
+
+    return res.status(200).json({
+      project: {
+        ...project,
+        isOwner,
+        hasParticipated,
+        currentAmount,
+      },
+    });
+    
   } catch (err) {
     console.error("[GET /api/projects/:id] error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
