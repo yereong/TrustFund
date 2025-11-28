@@ -9,21 +9,29 @@ import { useRouter } from "next/navigation";
 export default function CreateProject() {
   const router = useRouter();
 
-  const [milestones, setMilestones] = useState([{ id: 1, name: "" }]);
+  const [milestones, setMilestones] = useState([{ id: 1, name: "", amount: "" }]);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [targetAmount, setTargetAmount] = useState(0);
 
   const addMilestone = () => {
-    setMilestones([...milestones, { id: Date.now(), name: "" }]);
+    setMilestones([...milestones, { id: Date.now(), name: "", amount: "" }]);
   };
 
-  const updateMilestone = (id: number, value: string) => {
-    setMilestones(
-      milestones.map((m) => (m.id === id ? { ...m, name: value } : m))
-    );
-  };
+  const updateMilestone = (id: number, key: "name" | "amount", value: string) => {
+  const updated = milestones.map((m) =>
+    m.id === id ? { ...m, [key]: value } : m
+  );
+
+  setMilestones(updated);
+
+  const sum = updated.reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+  setTargetAmount(sum);
+};
+
+
 
   const removeMilestone = (id: number) => {
     setMilestones(milestones.filter((m) => m.id !== id));
@@ -59,11 +67,10 @@ export default function CreateProject() {
 
       const formData = new FormData(e.currentTarget);
       const title = (formData.get("title") as string)?.trim();
-      const targetAmountRaw = formData.get("targetAmount") as string;
       const expectedEnd = formData.get("expectedEnd") as string;
       const description = (formData.get("description") as string)?.trim();
 
-      const targetAmount = Number(targetAmountRaw);
+      const totalAmount = targetAmount;
 
       // 간단 검증
       if (!title || !targetAmount || !description) {
@@ -97,19 +104,26 @@ export default function CreateProject() {
 
       // 2️⃣ 마일스톤 데이터 변환 (백엔드에서 기대하는 형태)
       const milestonePayload = milestones
-        .map(
-          (m, idx) =>
-            m.name.trim() && { title: m.name.trim(), order: idx + 1 }
-        )
+        .map((m, idx) => {
+          if (!m.name.trim() || !m.amount) return null;
+
+          return {
+            title: m.name.trim(),
+            order: idx + 1,
+            allocatedAmount: Number(m.amount),
+          };
+        })
         .filter(Boolean);
+
+
 
       // 3️⃣ 프로젝트 생성 요청
       const payload = {
         title,
-        targetAmount,
+        targetAmount: totalAmount,
         expectedCompletionDate: expectedEnd || undefined,
         description,
-        representativeImage, // 👈 이제 null이 아니라 IPFS URL이 들어감
+        representativeImage, 
         milestones: milestonePayload,
       };
 
@@ -219,16 +233,19 @@ export default function CreateProject() {
             />
           </div>
 
-          {/* 목표 금액 */}
+          {/* 목표 금액 (자동 계산됨) */}
           <div className="space-y-2">
-            <label className="text-sm text-white/70">목표 금액 (원)</label>
+            <label className="text-sm text-white/70">목표 금액 (자동 계산)</label>
             <input
               type="number"
               name="targetAmount"
-              placeholder="예: 2000000"
-              className="w-full bg-white/10 px-4 py-3 rounded-xl border border-white/20 placeholder-white/40 focus:outline-none focus:border-indigo-400"
+              value={targetAmount}
+              disabled
+              className="w-full bg-white/10 px-4 py-3 rounded-xl border border-white/20 text-white
+                        placeholder-white/40 opacity-60 cursor-not-allowed"
             />
           </div>
+
 
           {/* 예상 완료 기한 */}
           <div className="space-y-2">
@@ -240,47 +257,64 @@ export default function CreateProject() {
             />
           </div>
 
-          {/* 마일스톤 */}
+        {/* 마일스톤 */}
+        <div className="space-y-3">
+          <label className="text-sm text-white/70">마일스톤</label>
+
           <div className="space-y-3">
-            <label className="text-sm text-white/70">마일스톤</label>
+            {milestones.map((m, idx) => (
+              <motion.div
+                key={m.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-3"
+              >
+                {/* 마일스톤 이름 */}
+                <input
+                  type="text"
+                  placeholder={`마일스톤 ${idx + 1} 이름`}
+                  value={m.name}
+                  onChange={(e) =>
+                    updateMilestone(m.id, "name", e.target.value)
+                  }
+                  className="flex-1 bg-white/10 px-4 py-3 rounded-xl border border-white/20 placeholder-white/40 focus:outline-none focus:border-indigo-400"
+                />
 
-            <div className="space-y-3">
-              {milestones.map((m, idx) => (
-                <motion.div
-                  key={m.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-3"
-                >
-                  <input
-                    type="text"
-                    placeholder={`마일스톤 ${idx + 1}`}
-                    value={m.name}
-                    onChange={(e) => updateMilestone(m.id, e.target.value)}
-                    className="flex-1 bg-white/10 px-4 py-3 rounded-xl border border-white/20 placeholder-white/40 focus:outline-none focus:border-indigo-400"
-                  />
+                {/* 필요 금액 */}
+                <input
+                  type="number"
+                  placeholder="필요 금액 (원)"
+                  value={m.amount}
+                  onChange={(e) =>
+                    updateMilestone(m.id, "amount", e.target.value)
+                  }
+                  className="w-40 bg-white/10 px-4 py-3 rounded-xl border border-white/20 placeholder-white/40 focus:outline-none focus:border-cyan-400"
+                />
 
-                  {milestones.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeMilestone(m.id)}
-                      className="p-2 bg-white/10 border border-white/20 rounded-xl hover:bg-red-500/20 transition"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  )}
-                </motion.div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={addMilestone}
-              className="flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 mt-2"
-            >
-              <Plus size={16} /> 마일스톤 추가
-            </button>
+                {/* 삭제 */}
+                {milestones.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeMilestone(m.id)}
+                    className="p-2 bg-white/10 border border-white/20 rounded-xl hover:bg-red-500/20 transition"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </motion.div>
+            ))}
           </div>
+
+          {/* 마일스톤 추가 */}
+          <button
+            type="button"
+            onClick={addMilestone}
+            className="flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 mt-2"
+          >
+            <Plus size={16} /> 마일스톤 추가
+          </button>
+        </div>
+
 
           {/* 설명 */}
           <div className="space-y-2">
