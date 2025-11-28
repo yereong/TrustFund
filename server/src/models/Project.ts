@@ -14,6 +14,7 @@ export interface IMilestone {
   description?: string;                // 설명
   order: number;                       // 순서 (1~5)
 
+   allocatedAmount: number;               // 이 마일스톤에 할당된 금액
   // 마일스톤 완료 요청 및 상태
   requestSent: boolean;                // 창작자가 완료 요청 보냈는지
   requestAt?: Date;
@@ -62,6 +63,8 @@ const MilestoneSchema = new Schema<IMilestone>(
     title: { type: String, required: true },
     description: { type: String },
     order: { type: Number, required: true },
+
+    allocatedAmount: { type: Number, required: true, default: 0 },
 
     requestSent: { type: Boolean, default: false },
     requestAt: { type: Date },
