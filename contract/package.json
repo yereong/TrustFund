@@ -10,6 +10,9 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "hardhat": "^3.0.16"
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "hardhat": "^2.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }
