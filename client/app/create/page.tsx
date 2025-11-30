@@ -5,9 +5,12 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, Plus, Trash2, ImageIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useWeb3Auth } from "@web3auth/modal/react";
+import { createProject as createProjectOnChain } from "@/utils/contractActions";
 
 export default function CreateProject() {
   const router = useRouter();
+  const { provider, status } = useWeb3Auth();
 
   const [milestones, setMilestones] = useState([{ id: 1, name: "", amount: "" }]);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
@@ -16,26 +19,25 @@ export default function CreateProject() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [targetAmount, setTargetAmount] = useState(0);
 
-  const addMilestone = () => {
+   const addMilestone = () => {
     setMilestones([...milestones, { id: Date.now(), name: "", amount: "" }]);
   };
 
   const updateMilestone = (id: number, key: "name" | "amount", value: string) => {
-  const updated = milestones.map((m) =>
-    m.id === id ? { ...m, [key]: value } : m
-  );
+    const updated = milestones.map((m) =>
+      m.id === id ? { ...m, [key]: value } : m
+    );
 
-  setMilestones(updated);
+    setMilestones(updated);
 
-  const sum = updated.reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-  setTargetAmount(sum);
-};
-
-
+    const sum = updated.reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    setTargetAmount(sum);
+  };
 
   const removeMilestone = (id: number) => {
     setMilestones(milestones.filter((m) => m.id !== id));
   };
+
 
   // 이미지 파일 선택 시 미리보기 URL 생성
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,89 +67,107 @@ export default function CreateProject() {
       setSubmitting(true);
       setErrorMessage(null);
 
+      if (status !== "connected" || !provider) {
+        alert("지갑이 아직 연결되지 않았습니다.");
+        return;
+      }
+
       const formData = new FormData(e.currentTarget);
       const title = (formData.get("title") as string)?.trim();
       const expectedEnd = formData.get("expectedEnd") as string;
       const description = (formData.get("description") as string)?.trim();
 
-      const totalAmount = targetAmount;
-
-      // 간단 검증
-      if (!title || !targetAmount || !description) {
-        setErrorMessage("제목, 목표 금액, 설명은 필수입니다.");
+      if (!title || !description) {
+        setErrorMessage("제목, 설명은 필수입니다.");
         return;
       }
 
-      // 1️⃣ 썸네일 이미지가 있으면 먼저 Pinata(IPFS)에 업로드
+      /* -----------------------------
+         1️⃣ 이미지 업로드 (Pinata)
+      ----------------------------- */
       let representativeImage: string | null = null;
 
       if (thumbnailFile) {
-        const imgFormData = new FormData();
-        imgFormData.append("file", thumbnailFile);
+        const imgForm = new FormData();
+        imgForm.append("file", thumbnailFile);
 
         const imgRes = await fetch("http://localhost:4000/api/upload/image", {
           method: "POST",
-          body: imgFormData,
-          credentials: "include", // JWT 쿠키 사용 중이면 유지
+          body: imgForm,
+          credentials: "include",
         });
 
-        if (!imgRes.ok) {
-          const data = await imgRes.json().catch(() => ({}));
-          throw new Error(
-            data.message ?? "이미지 업로드 중 오류가 발생했습니다."
-          );
-        }
+        if (!imgRes.ok) throw new Error("이미지 업로드 실패");
 
         const imgData = await imgRes.json();
-        representativeImage = imgData.url; // 👈 IPFS 게이트웨이 URL
+        representativeImage = imgData.url;
       }
 
-      // 2️⃣ 마일스톤 데이터 변환 (백엔드에서 기대하는 형태)
-      const milestonePayload = milestones
-        .map((m, idx) => {
-          if (!m.name.trim() || !m.amount) return null;
+      /* -------------------------------------------
+         2️⃣ 마일스톤 정제 (빈 값 제거)
+      ------------------------------------------- */
+      const milestoneTitles = milestones
+        .map((m) => m.name.trim())
+        .filter((v) => v.length > 0);
 
-          return {
-            title: m.name.trim(),
-            order: idx + 1,
-            allocatedAmount: Number(m.amount),
-          };
-        })
-        .filter(Boolean);
+      const milestoneAmounts = milestones
+        .map((m) => Number(m.amount))
+        .filter((v) => !isNaN(v) && v > 0);
 
+      if (milestoneTitles.length !== milestoneAmounts.length) {
+        throw new Error("마일스톤 입력값이 부족합니다.");
+      }
 
+      /* -------------------------------------------------
+         3️⃣ 온체인 createProject 실행
+      ------------------------------------------------- */
+      console.log("🔥 온체인 createProject 실행...");
 
-      // 3️⃣ 프로젝트 생성 요청
+      const onChain = await createProjectOnChain(
+        provider,
+        milestoneTitles,
+        milestoneAmounts
+      );
+
+      console.log("⛓ chain projectId:", onChain.projectId);
+
+      // if (onChain.projectId == null) {
+      //   throw new Error("컨트랙트 ProjectCreated 이벤트를 읽지 못했습니다.");
+      // }
+
+      const chainProjectId = onChain.projectId;
+
+      /* -------------------------------------------------
+         4️⃣ 백엔드 DB에 저장
+      ------------------------------------------------- */
       const payload = {
         title,
-        targetAmount: totalAmount,
+        targetAmount,
         expectedCompletionDate: expectedEnd || undefined,
         description,
-        representativeImage, 
-        milestones: milestonePayload,
+        representativeImage,
+        chainProjectId, // 🔥 온체인 projectId 저장
+        milestones: milestones.map((m, idx) => ({
+          title: m.name,
+          order: idx + 1,
+          allocatedAmount: Number(m.amount),
+        })),
       };
 
       const res = await fetch("http://localhost:4000/api/projects", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include", // JWT 쿠키 포함
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(
-          data.message ?? "프로젝트 생성 중 오류가 발생했습니다."
-        );
-      }
+      if (!res.ok) throw new Error("백엔드 저장 실패");
 
-      // 성공 시 메인 화면으로 이동 (또는 상세 페이지로 이동도 가능)
+      alert("프로젝트가 성공적으로 생성되었습니다!");
       router.push("/main");
     } catch (err: any) {
-      console.error("프로젝트 생성 에러:", err);
-      setErrorMessage(err.message ?? "알 수 없는 에러가 발생했습니다.");
+      console.error("🚨 프로젝트 생성 에러:", err);
+      setErrorMessage(err.message ?? "알 수 없는 에러");
     } finally {
       setSubmitting(false);
     }
@@ -283,7 +303,7 @@ export default function CreateProject() {
                 {/* 필요 금액 */}
                 <input
                   type="number"
-                  placeholder="필요 금액 (원)"
+                  placeholder="필요 금액 (ETH)"
                   value={m.amount}
                   onChange={(e) =>
                     updateMilestone(m.id, "amount", e.target.value)
