@@ -35,7 +35,9 @@ export interface TrustFundInterface extends Interface {
       | "voteMilestone"
   ): FunctionFragment;
 
-  getEvent(nameOrSignatureOrTopic: "ProjectCreated"): EventFragment;
+  getEvent(
+    nameOrSignatureOrTopic: "MilestoneRequested" | "ProjectCreated"
+  ): EventFragment;
 
   encodeFunctionData(
     functionFragment: "createProject",
@@ -91,6 +93,19 @@ export interface TrustFundInterface extends Interface {
     functionFragment: "voteMilestone",
     data: BytesLike
   ): Result;
+}
+
+export namespace MilestoneRequestedEvent {
+  export type InputTuple = [projectId: BigNumberish, milestoneId: BigNumberish];
+  export type OutputTuple = [projectId: bigint, milestoneId: bigint];
+  export interface OutputObject {
+    projectId: bigint;
+    milestoneId: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace ProjectCreatedEvent {
@@ -166,10 +181,11 @@ export interface TrustFund extends BaseContract {
   projects: TypedContractMethod<
     [arg0: BigNumberish],
     [
-      [string, bigint, bigint, boolean] & {
+      [string, bigint, bigint, bigint, boolean] & {
         owner: string;
         totalFunding: bigint;
         milestoneCount: bigint;
+        funderCount: bigint;
         exists: boolean;
       }
     ],
@@ -216,10 +232,11 @@ export interface TrustFund extends BaseContract {
   ): TypedContractMethod<
     [arg0: BigNumberish],
     [
-      [string, bigint, bigint, boolean] & {
+      [string, bigint, bigint, bigint, boolean] & {
         owner: string;
         totalFunding: bigint;
         milestoneCount: bigint;
+        funderCount: bigint;
         exists: boolean;
       }
     ],
@@ -248,6 +265,13 @@ export interface TrustFund extends BaseContract {
   >;
 
   getEvent(
+    key: "MilestoneRequested"
+  ): TypedContractEvent<
+    MilestoneRequestedEvent.InputTuple,
+    MilestoneRequestedEvent.OutputTuple,
+    MilestoneRequestedEvent.OutputObject
+  >;
+  getEvent(
     key: "ProjectCreated"
   ): TypedContractEvent<
     ProjectCreatedEvent.InputTuple,
@@ -256,6 +280,17 @@ export interface TrustFund extends BaseContract {
   >;
 
   filters: {
+    "MilestoneRequested(uint256,uint256)": TypedContractEvent<
+      MilestoneRequestedEvent.InputTuple,
+      MilestoneRequestedEvent.OutputTuple,
+      MilestoneRequestedEvent.OutputObject
+    >;
+    MilestoneRequested: TypedContractEvent<
+      MilestoneRequestedEvent.InputTuple,
+      MilestoneRequestedEvent.OutputTuple,
+      MilestoneRequestedEvent.OutputObject
+    >;
+
     "ProjectCreated(uint256,address)": TypedContractEvent<
       ProjectCreatedEvent.InputTuple,
       ProjectCreatedEvent.OutputTuple,

@@ -1,3 +1,4 @@
+// hardhat.config.ts
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@nomicfoundation/hardhat-verify";
@@ -22,8 +23,8 @@ const config: HardhatUserConfig = {
   etherscan: {
     apiKey: {
       sepolia: ETHERSCAN_API_KEY,
-    }
-  }
+    },
+  },
 };
 
 export default config;

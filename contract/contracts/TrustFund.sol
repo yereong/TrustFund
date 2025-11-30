@@ -5,6 +5,7 @@ contract TrustFund {
     struct Milestone {
         string title;
         uint256 allocatedAmount;
+        bool requested;
         bool completed;
         bool approved;
         uint256 yesVotes;
@@ -16,6 +17,7 @@ contract TrustFund {
         address owner;
         uint256 totalFunding;
         uint256 milestoneCount;
+        uint256 funderCount;
         mapping(uint256 => Milestone) milestones;
         mapping(address => uint256) contributions;
         bool exists;
@@ -40,6 +42,7 @@ contract TrustFund {
         for (uint256 i = 0; i < titles.length; i++) {
             p.milestones[i].title = titles[i];
             p.milestones[i].allocatedAmount = amounts[i];
+            p.milestones[i].requested = false;
             p.milestones[i].completed = false;
             p.milestones[i].approved = false;
             p.milestoneCount++;
@@ -57,23 +60,42 @@ contract TrustFund {
         require(p.exists, "Project not found");
         require(msg.value > 0, "Need ETH");
 
+        if (p.contributions[msg.sender] == 0) {
+        p.funderCount += 1; // 🔥 처음 펀딩하는 유저
+    }
+
         p.contributions[msg.sender] += msg.value;
         p.totalFunding += msg.value;
     }
 
     // 3) 마일스톤 완료 요청
+    event MilestoneRequested(uint256 indexed projectId, uint256 indexed milestoneId);
+
     function requestMilestone(uint256 projectId, uint256 milestoneId) external {
         Project storage p = projects[projectId];
+        require(p.exists, "Project not found");
         require(msg.sender == p.owner, "Not owner");
-        require(!p.milestones[milestoneId].completed, "Already completed");
+        require(milestoneId < p.milestoneCount, "Invalid milestoneId");
+
+        Milestone storage m = p.milestones[milestoneId];
+
+        require(!m.completed, "Already completed");
+        require(!m.requested, "Already requested");
+
+        m.requested = true;
+
+        emit MilestoneRequested(projectId, milestoneId);
     }
 
     // 4) 참여자 투표
     function voteMilestone(uint256 projectId, uint256 milestoneId, bool approve) external {
         Project storage p = projects[projectId];
+        require(p.exists, "Project not found");
+        require(milestoneId < p.milestoneCount, "Invalid milestoneId");
         require(p.contributions[msg.sender] > 0, "Not funder");
 
         Milestone storage m = p.milestones[milestoneId];
+        require(m.requested, "Not requested yet");  
         require(!m.voted[msg.sender], "Already voted");
 
         m.voted[msg.sender] = true;
@@ -81,7 +103,7 @@ contract TrustFund {
         if (approve) m.yesVotes += 1;
         else m.noVotes += 1;
 
-        if (m.yesVotes > m.noVotes) {
+        if (m.yesVotes * 2 > p.funderCount) {
             m.approved = true;
         }
     }
@@ -89,6 +111,8 @@ contract TrustFund {
     // 5) 마일스톤 승인되면 금액 송금
     function releaseMilestone(uint256 projectId, uint256 milestoneId) external {
         Project storage p = projects[projectId];
+        require(p.exists, "Project not found");
+        require(milestoneId < p.milestoneCount, "Invalid milestoneId");
         require(msg.sender == p.owner, "Not owner");
 
         Milestone storage m = p.milestones[milestoneId];
