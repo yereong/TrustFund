@@ -1,4 +1,3 @@
-// src/models/Project.ts
 import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IMilestoneVote {
@@ -14,7 +13,8 @@ export interface IMilestone {
   description?: string;                // 설명
   order: number;                       // 순서 (1~5)
 
-   allocatedAmount: number;               // 이 마일스톤에 할당된 금액
+  allocatedAmount: number;             // 이 마일스톤에 할당된 금액
+
   // 마일스톤 완료 요청 및 상태
   requestSent: boolean;                // 창작자가 완료 요청 보냈는지
   requestAt?: Date;
@@ -34,9 +34,12 @@ export interface IProject extends Document {
   ownerUser?: mongoose.Types.ObjectId;  // 작성자 User _id (있으면 더 좋음)
   ownerWallet: string;                  // 작성자 지갑
 
+  // 🔥 온체인 TrustFund 컨트랙트의 projectId (uint256)
+  chainProjectId?: number;
+
   representativeImage?: string;         // 대표 이미지 URL
   title: string;                        // 프로젝트 제목
-  targetAmount: number;                 // 목표 금액 (원)
+  targetAmount: number;                 // 목표 금액 (원 또는 ETH, 네가 정한 기준)
   expectedCompletionDate?: Date;        // 예상 완료 기한
   milestones: IMilestone[];             // 마일스톤 최대 5개
   description: string;                  // 설명
@@ -82,7 +85,7 @@ const MilestoneSchema = new Schema<IMilestone>(
     votes: { type: [MilestoneVoteSchema], default: [] },
   },
   {
-    _id: true, // 각 마일스톤마다 고유 _id (기본값이긴 하지만 명시)
+    _id: true, // 각 마일스톤마다 고유 _id
   }
 );
 
@@ -94,6 +97,9 @@ const ProjectSchema = new Schema<IProject>(
   {
     ownerUser: { type: Schema.Types.ObjectId, ref: "User" },
     ownerWallet: { type: String, required: true, index: true },
+
+    // 🔥 온체인 projectId 저장용
+    chainProjectId: { type: Number, index: true },
 
     representativeImage: { type: String },
     title: { type: String, required: true },

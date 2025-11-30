@@ -14,7 +14,7 @@ const router = Router();
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const {
-      chainProjectId,
+      chainProjectId, // ✅ 온체인 projectId
       title,
       targetAmount,
       representativeImage,
@@ -36,6 +36,10 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       });
     }
 
+    if (typeof chainProjectId !== "number") {
+      return res.status(400).json({ message: "chainProjectId가 필요합니다." });
+    }
+
     const project = await Project.create({
       ownerUser: userId,
       ownerWallet: walletAddress.toLowerCase(),
@@ -47,6 +51,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
         : undefined,
       milestones,
       description,
+      chainProjectId, // 🔥 저장
     });
 
     return res.status(201).json({ project });
@@ -92,52 +97,65 @@ router.get("/", async (req, res) => {
  *
  * GET /api/projects/:id
  */
-router.get("/:id", async (req: AuthRequest, res) => {
+router.get("/:id",requireAuth, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const userId = req.auth?.userId;
     const userWallet = req.auth?.walletAddress;
+    console.log('유저아이디:', userId);
 
-
-    const project = await Project.findById(id).lean();
-
-    if (!project) {
+    // 🔥 여기서는 lean() 말고 Document로 가져와서 status 수정 가능하게
+    const projectDoc = await Project.findById(id);
+    if (!projectDoc) {
       return res.status(404).json({ message: "프로젝트를 찾을 수 없습니다." });
     }
 
-     const isOwner =
-      !!(
-        (userId && project.ownerUser?.toString() === userId.toString()) ||
-        (userWallet && project.ownerWallet === userWallet)
-      );
-
-       let hasParticipated = false;
-       
-
-    if (userId || userWallet) {
-      for (const milestone of project.milestones) {
-        for (const vote of milestone.votes) {
-          const votedByUser =
-            (userId && vote.voterUser?.toString() === userId.toString()) ||
-            (userWallet && vote.voterWallet === userWallet);
-
-          if (votedByUser) {
-            hasParticipated = true;
-            break;
-          }
-        }
-        if (hasParticipated) break;
-      }
-    }
-
-     const totalFunding = await Investment.aggregate([
-      { $match: { project: project._id } },
-      { $group: { _id: null, total: { $sum: "$amount" } } }
+    // ✅ 총 펀딩 금액 계산
+    const totalFunding = await Investment.aggregate([
+      { $match: { project: projectDoc._id } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
 
     const currentAmount = totalFunding[0]?.total || 0;
 
+    // ✅ 1. currentAmount와 targetAmount 비교해서 status 업데이트
+    if (
+      currentAmount >= projectDoc.targetAmount && // 같거나 초과하면
+      projectDoc.status !== "COMPLETED"
+    ) {
+      projectDoc.status = "COMPLETED";
+      await projectDoc.save();
+    }
 
+    // ✅ 3. isOwner 계산 (ownerUser 또는 ownerWallet 기준)
+    const isOwner =
+      (
+        (userId == projectDoc.ownerUser) ||
+        (userWallet == projectDoc.ownerWallet.toLowerCase())
+      );
+
+    // ✅ 2. hasParticipated: Investment에 기록이 있으면 true
+    let hasParticipated = false;
+
+    if (userId || userWallet) {
+      const orConds: any[] = [];
+      if (userId) {
+        orConds.push({ user: userId });
+      }
+      if (userWallet) {
+        orConds.push({ wallet: userWallet.toLowerCase() });
+      }
+
+      if (orConds.length > 0) {
+        const invested = await Investment.exists({
+          project: projectDoc._id,
+          user: userId,
+        });
+        hasParticipated = !!invested;
+      }
+    }
+
+    const project = projectDoc.toObject();
 
     return res.status(200).json({
       project: {
@@ -147,7 +165,6 @@ router.get("/:id", async (req: AuthRequest, res) => {
         currentAmount,
       },
     });
-    
   } catch (err) {
     console.error("[GET /api/projects/:id] error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
@@ -191,7 +208,9 @@ router.put("/:id", requireAuth, async (req: AuthRequest, res) => {
       project.ownerWallet.toLowerCase() === walletAddress.toLowerCase();
 
     if (!isOwnerByUserId && !isOwnerByWallet) {
-      return res.status(403).json({ message: "프로젝트 수정 권한이 없습니다." });
+      return res
+        .status(403)
+        .json({ message: "프로젝트 수정 권한이 없습니다." });
     }
 
     if (title !== undefined) project.title = title;
@@ -242,7 +261,9 @@ router.delete("/:id", requireAuth, async (req: AuthRequest, res) => {
       project.ownerWallet.toLowerCase() === walletAddress.toLowerCase();
 
     if (!isOwnerByUserId && !isOwnerByWallet) {
-      return res.status(403).json({ message: "프로젝트 삭제 권한이 없습니다." });
+      return res
+        .status(403)
+        .json({ message: "프로젝트 삭제 권한이 없습니다." });
     }
 
     await project.deleteOne();
@@ -296,14 +317,12 @@ router.post(
           .json({ message: "마일스톤을 찾을 수 없습니다." });
       }
 
-      // (선택사항) 이미 완료된 마일스톤은 투표 막기
       if (milestone.status !== "PENDING") {
         return res.status(400).json({
           message: "이미 종료된 마일스톤에는 투표할 수 없습니다.",
         });
       }
 
-      // 이미 투표한 적 있는지 체크 (지갑 기준)
       const alreadyVoted = milestone.votes?.some(
         (v: any) =>
           v.voterWallet.toLowerCase() === walletAddress.toLowerCase()
@@ -312,7 +331,6 @@ router.post(
         return res.status(400).json({ message: "이미 투표한 마일스톤입니다." });
       }
 
-      // 투표 저장
       milestone.votes.push({
         voterUser: userId,
         voterWallet: walletAddress.toLowerCase(),
@@ -321,7 +339,6 @@ router.post(
         createdAt: new Date(),
       });
 
-      // 집계값 업데이트
       if (choice === "YES") {
         milestone.yesCount += 1;
         if (amount) milestone.yesAmount += amount;
@@ -344,15 +361,15 @@ router.post(
 );
 
 /**
- * 프로젝트 펀딩 참여
+ * 프로젝트 펀딩 참여 (온체인 완료 후 기록용)
  *
  * POST /api/projects/:id/fund
- * body: { amount: number }
+ * body: { amount: number, txHash?: string }
  */
 router.post("/:id/fund", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { amount } = req.body;
+    const { amount, txHash } = req.body;
 
     const walletAddress = req.auth?.walletAddress;
     const userId = req.auth?.userId;
@@ -362,32 +379,49 @@ router.post("/:id/fund", requireAuth, async (req: AuthRequest, res) => {
     }
 
     if (!amount || typeof amount !== "number" || amount <= 0) {
-      return res.status(400).json({ message: "amount는 1 이상의 숫자여야 합니다." });
+      return res
+        .status(400)
+        .json({ message: "amount는 1 이상의 숫자여야 합니다." });
     }
 
-    // 프로젝트 존재 확인
     const project = await Project.findById(id);
     if (!project) {
       return res.status(404).json({ message: "프로젝트를 찾을 수 없습니다." });
     }
 
-    // Investment 생성
     const funding = await Investment.create({
       project: project._id,
       user: userId,
       wallet: walletAddress.toLowerCase(),
       amount,
+      txHash,
     });
+
+    // ✅ 펀딩 후 총액 다시 계산해서 status 갱신
+    const totalFunding = await Investment.aggregate([
+      { $match: { project: project._id } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]);
+    const currentAmount = totalFunding[0]?.total || 0;
+
+    if (
+      currentAmount >= project.targetAmount && // 같거나 초과
+      project.status !== "COMPLETED"
+    ) {
+      project.status = "COMPLETED";
+      await project.save();
+    }
 
     return res.status(201).json({
       message: "펀딩 참여가 완료되었습니다.",
       funding,
+      currentAmount,
+      status: project.status,
     });
   } catch (err) {
     console.error("[POST /api/projects/:id/fund] error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
-
 
 export default router;
