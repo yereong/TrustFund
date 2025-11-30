@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowLeft, Edit3, LogOut } from "lucide-react";
+import { ArrowLeft, Edit3, LogOut, RefreshCw } from "lucide-react";
 import {
   useWeb3AuthUser,
   useWeb3AuthDisconnect,
+  useWeb3Auth,
 } from "@web3auth/modal/react";
+import { ethers } from "ethers";
 
 // 더미 데이터
 const myProjects = [
@@ -50,6 +52,37 @@ export default function MyPage() {
   const { disconnect } = useWeb3AuthDisconnect();
   const [activeTab, setActiveTab] = useState<"myProjects" | "myFundings" | "profile">("myProjects");
   const router = useRouter();
+  const { provider } = useWeb3Auth();
+
+  const [wallet, setWallet] = useState<string>("");
+  const [balance, setBalance] = useState<string>("0");
+  const [loadingBalance, setLoadingBalance] = useState(false);
+
+  const loadWalletInfo = async () => {
+    try {
+      if (!provider) return;
+
+      setLoadingBalance(true);
+
+      const ethersProvider = new ethers.BrowserProvider(provider);
+      const signer = await ethersProvider.getSigner();
+
+      const address = await signer.getAddress();
+      setWallet(address);
+
+      const rawBalance = await ethersProvider.getBalance(address);
+      setBalance(ethers.formatEther(rawBalance));
+    } catch (err) {
+      console.error("잔액 조회 실패:", err);
+    } finally {
+      setLoadingBalance(false);
+    }
+  };
+
+  // 마이페이지 방문 시 자동으로 지갑 정보 로드
+  useEffect(() => {
+    loadWalletInfo();
+  }, [provider]);
 
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-white font-[Inter]">
@@ -70,17 +103,14 @@ export default function MyPage() {
         </div>
       </header>
 
-      {/* 메인 */}
       <main className="max-w-5xl mx-auto px-5 py-10 grid grid-cols-1 md:grid-cols-[1.2fr,2fr] gap-8">
         {/* 왼쪽: 프로필 카드 */}
         <section className="space-y-6">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-md">
             <div className="flex items-center gap-4">
-              {/* 아바타 */}
               <div className="h-14 w-14 rounded-full bg-gradient-to-br from-cyan-400 to-indigo-500 grid place-items-center text-lg font-bold">
                 {userInfo?.name?.[0] || userInfo?.email?.[0] || "U"}
               </div>
-              {/* 기본 정보 */}
               <div>
                 <div className="text-lg font-semibold">
                   {userInfo?.name || "사용자"}
@@ -90,6 +120,42 @@ export default function MyPage() {
                 </div>
               </div>
             </div>
+
+            {/* 👇 지갑 주소 */}
+            <div className="mt-5 p-3 bg-white/5 rounded-xl border border-white/10 text-xs break-all">
+              <div className="text-white/60 mb-1">지갑 주소</div>
+              <div className="text-white">{wallet || "연결 중..."}</div>
+            </div>
+
+            {/* 👇 잔액 */}
+            <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-xs mt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-white/60">ETH 잔액</span>
+                <button
+                  onClick={loadWalletInfo}
+                  className="text-white/60 hover:text-white transition"
+                >
+                  <RefreshCw size={14} />
+                </button>
+              </div>
+
+              <div className="text-lg font-semibold mt-1">
+                {loadingBalance ? "조회중..." : `${balance} ETH`}
+              </div>
+
+              {/*충전 버튼*/}
+              <button
+                onClick={() => {
+                  if (!wallet) return alert("지갑 주소를 찾을 수 없습니다.");
+                  const faucetUrl = `https://ghostchain.io/faucet/ethereum-sepolia/?address=${wallet}`;
+                  window.open(faucetUrl, "_blank");
+                }}
+                className="mt-3 w-full bg-indigo-500 hover:bg-indigo-400 text-white py-2 rounded-xl text-sm font-medium transition"
+              >
+                🔋 테스트넷 ETH 충전하기
+              </button>
+            </div>
+
 
             {/* 요약 통계 */}
             <div className="mt-5 grid grid-cols-3 gap-3 text-center text-sm">
@@ -109,9 +175,8 @@ export default function MyPage() {
               </div>
             </div>
 
-            {/* 로그아웃 */}
             <button
-              onClick={() => {disconnect(); router.push('/');}}
+              onClick={() => { disconnect(); router.push('/'); }}
               className="mt-5 w-full flex items-center justify-center gap-2 text-sm text-white/70 bg-white/5 border border-white/20 rounded-xl py-2 hover:bg-white/10 transition"
             >
               <LogOut size={16} />
