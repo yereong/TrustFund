@@ -1,9 +1,24 @@
-import { ethers } from "ethers";
-import { getSigner } from "./getWeb3Signer";
-import TrustFundAbi from "@/contract/TrustFund.json"; // 컴파일 후 생성된 ABI
+import { BrowserProvider, Contract } from "ethers";
+import TrustFundAbi from "@/contract/TrustFund.json";
 import { CONTRACT_ADDRESS } from "@/contstants/contract";
 
 export async function getContract(provider: any) {
-  const signer = await getSigner(provider);
-  return new ethers.Contract(CONTRACT_ADDRESS, TrustFundAbi.abi, signer);
+  if (!provider) throw new Error("Web3 provider가 없습니다.");
+
+  const browserProvider = new BrowserProvider(provider);
+  const signer = await browserProvider.getSigner();
+
+  const network = await browserProvider.getNetwork();
+
+  const chainId = Number(network.chainId); 
+  console.log("📡 연결된 네트워크:", chainId);
+
+  // Sepolia: 11155111
+  if (chainId !== 11155111) {
+    throw new Error(
+      `현재 네트워크가 Sepolia가 아닙니다. (chainId: ${chainId})`
+    );
+  }
+
+  return new Contract(CONTRACT_ADDRESS, TrustFundAbi.abi, signer);
 }

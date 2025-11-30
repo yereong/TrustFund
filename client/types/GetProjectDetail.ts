@@ -31,5 +31,6 @@ export type GetProjectDetailResponse = {
     currentAmount: number;
     title: string;
     updatedAt: string;
+    chainProjectId:number;
     _id: string;
 };
