@@ -1,2 +1,2 @@
 export const CONTRACT_ADDRESS =
-  "0x602deFc815be7f01266d14bb28baf7774D673737"; // 실제 배포된 주소로 교체
+  "0x262d3a78f14773467012c4dA066b6fE45F421776"; // 실제 배포된 주소로 교체

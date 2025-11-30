@@ -14,7 +14,6 @@ import { useWeb3Auth } from "@web3auth/modal/react";
 
 export default function ProjectDetail() {
   const { id: projectId } = useParams();
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<GetProjectDetailResponse>(
     {} as GetProjectDetailResponse

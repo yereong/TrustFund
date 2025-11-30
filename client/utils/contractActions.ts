@@ -62,6 +62,7 @@ export async function createProject(
   };
 }
 
+
 /**
  * 🔥 마일스톤 투표
  */
@@ -85,33 +86,46 @@ export async function voteMilestone(
 }
 
 /**
- * 🔥 마일스톤 요청(창작자)
+ * 🔥 마일스톤 완료 요청 (창작자)
+ * - 컨트랙트의 requestMilestone(projectId, milestoneId)를 호출
+ * - 컨트랙트에서 MilestoneRequested 이벤트가 emit 됨
  */
 export async function requestMilestone(
   provider: any,
   projectId: number,
   milestoneId: number
 ) {
+  if (!provider) throw new Error("지갑(provider)이 없습니다.");
+
   const contract = await getContract(provider);
 
   const tx = await contract.requestMilestone(projectId, milestoneId);
-  await tx.wait();
+  const receipt = await tx.wait();
 
-  return tx.hash;
+  return {
+    txHash: tx.hash,
+    receipt,
+  };
 }
 
 /**
- * 🔥 마일스톤 지급 승인(투표 과반 획득)
+ * 🔥 마일스톤 지급 승인(투표 과반 획득 후, 창작자가 호출)
+ * - 컨트랙트에서 approved 체크 후, allocatedAmount 만큼 owner에게 송금
  */
 export async function releaseMilestone(
   provider: any,
   projectId: number,
   milestoneId: number
 ) {
+  if (!provider) throw new Error("지갑(provider)이 없습니다.");
+
   const contract = await getContract(provider);
 
   const tx = await contract.releaseMilestone(projectId, milestoneId);
-  await tx.wait();
+  const receipt = await tx.wait();
 
-  return tx.hash;
+  return {
+    txHash: tx.hash,
+    receipt,
+  };
 }

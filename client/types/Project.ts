@@ -7,3 +7,4 @@ export type Project = {
   currentAmount?: number;
   progress?: number; // currentAmount / targetAmount 로 계산해서 내려줄 수도 있음
 };
+
