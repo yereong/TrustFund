@@ -361,6 +361,83 @@ router.post(
 );
 
 /**
+ * 🔥 마일스톤 완료 요청 + 증빙 저장
+ *
+ * POST /api/projects/:projectId/milestones/:milestoneId/request-completion
+ * body: { description: string, proofUrl?: string }
+ */
+router.post(
+  "/:projectId/milestones/:milestoneId/request-completion",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const { projectId, milestoneId } = req.params;
+      const { description, proofUrl } = req.body || {};
+
+      const walletAddress = req.auth?.walletAddress;
+      const userId = req.auth?.userId;
+
+      if (!walletAddress) {
+        return res.status(401).json({ message: "인증된 유저가 아닙니다." });
+      }
+
+      if (!description || typeof description !== "string") {
+        return res
+          .status(400)
+          .json({ message: "description(완료 상세 내용)은 필수입니다." });
+      }
+
+      const project: any = await Project.findById(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "프로젝트를 찾을 수 없습니다." });
+      }
+
+      // 작성자만 완료 요청 가능
+      const isOwnerByUserId =
+        userId && project.ownerUser && project.ownerUser.toString() === userId;
+      const isOwnerByWallet =
+        project.ownerWallet.toLowerCase() === walletAddress.toLowerCase();
+
+      if (!isOwnerByUserId && !isOwnerByWallet) {
+        return res
+          .status(403)
+          .json({ message: "마일스톤 완료 요청 권한이 없습니다." });
+      }
+
+      const milestone = project.milestones.id(milestoneId);
+      if (!milestone) {
+        return res
+          .status(404)
+          .json({ message: "마일스톤을 찾을 수 없습니다." });
+      }
+
+      // 완료 보고 내용 & 증빙 자료 URL 저장
+      milestone.completionDetail = description;
+      if (proofUrl) {
+        milestone.proofUrl = proofUrl;
+      }
+
+      // 완료 요청 상태 플래그
+      milestone.requestSent = true;
+      milestone.requestAt = new Date();
+
+      await project.save();
+
+      return res.status(200).json({
+        message: "마일스톤 완료 요청이 저장되었습니다.",
+        milestone,
+      });
+    } catch (err) {
+      console.error(
+        "[POST /api/projects/:projectId/milestones/:milestoneId/request-completion] error:",
+        err
+      );
+      return res.status(500).json({ message: "Internal Server Error" });
+    }
+  }
+);
+
+/**
  * 프로젝트 펀딩 참여 (온체인 완료 후 기록용)
  *
  * POST /api/projects/:id/fund
