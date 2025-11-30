@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { useParams, useSearchParams } from "next/navigation";
+import { m, motion } from "framer-motion";
 import { ArrowLeft, Upload, ImageIcon, FileText } from "lucide-react";
+import { Milestone } from "@/interfaces/project";
+import { milestone } from "@/interfaces/mileStone";
 
 type UploadedFilePreview = {
   file: File;
@@ -12,25 +14,46 @@ type UploadedFilePreview = {
   isImage: boolean;
 };
 
-// TODO: 실제 데이터 연동 시 API로 교체
-const dummyMilestones = [
-  { id: 1, name: "시제품 디자인 완료" },
-  { id: 2, name: "금형 제작 완료" },
-  { id: 3, name: "초기 생산 완료" },
-];
-
 export default function MilestoneRequestPage() {
   const params = useParams();
   const projectId = params?.id;
 
-  const [selectedMilestoneId, setSelectedMilestoneId] = useState<number | null>(
-    dummyMilestones[0]?.id ?? null
+  const searchParams = useSearchParams();
+  const initialmilestoneId = searchParams.get("milestoneId");
+
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(
+    initialmilestoneId ?? null
   );
   const [description, setDescription] = useState("");
   const [requestAmount, setRequestAmount] = useState("");
   const [uploadedFile, setUploadedFile] = useState<UploadedFilePreview | null>(
     null
   );
+
+  const [loading, setLoading] = useState(true);
+  const [milestones, setMilestones] = useState<milestone[]>([]);
+
+
+   useEffect(() => {
+    const fetchProject = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:4000/api/projects/${projectId}`,
+          {
+            credentials: "include",
+          }
+        );
+        const data = await res.json();
+        console.log(data.project.milestones)
+        setMilestones(data.project.milestones);
+        setLoading(false);
+      } catch (error) {
+        console.error("프로젝트 정보를 불러오는 중 오류 발생:", error);
+      }
+    };
+
+    fetchProject();
+  }, [projectId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -81,18 +104,18 @@ export default function MilestoneRequestPage() {
     alert("마일스톤 완료 요청이 제출되었습니다. (투표 대기)");
   };
 
-  const selectedMilestone = dummyMilestones.find(
-    (m) => m.id === selectedMilestoneId
+  const selectedMilestone = milestones.find(
+    (m) => m._id === selectedMilestoneId
   );
 
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-white font-[Inter]">
       {/* 헤더 */}
       <header className="w-full border-b border-white/10 bg-[#0F0F0F]/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-around">
           <Link
             href={`/project/${projectId ?? ""}`}
-            className="flex items-center gap-2 text-white/80 hover:text-white"
+            className="flex items-center gap-2 text-white/80 hover:text-white ml-[-100px]"
           >
             <ArrowLeft size={20} />
             프로젝트로 돌아가기
@@ -105,8 +128,8 @@ export default function MilestoneRequestPage() {
       </header>
 
       {/* 메인 */}
-      <main className="max-w-4xl mx-auto px-5 py-10 space-y-8">
-        <h2 className="text-2xl md:text-3xl font-bold">
+      <main className="max-w-4xl mx-auto px-5 py-10 space-y-8 flex flex-col justify-center items-center">
+        <h2 className="text-2xl md:text-3xl font-bold text-center">
           후원자 투표를 위한 완료 보고
         </h2>
         <p className="text-sm text-white/60">
@@ -123,12 +146,12 @@ export default function MilestoneRequestPage() {
             <label className="text-sm text-white/70">완료한 마일스톤</label>
             <select
               value={selectedMilestoneId ?? ""}
-              onChange={(e) => setSelectedMilestoneId(Number(e.target.value))}
+              onChange={(e) => setSelectedMilestoneId(e.target.value)}
               className="w-full bg-white/10 px-4 py-3 rounded-xl border border-white/20 focus:outline-none focus:border-cyan-400 text-sm"
             >
-              {dummyMilestones.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
+              {milestones.map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.title}
                 </option>
               ))}
             </select>
@@ -143,7 +166,7 @@ export default function MilestoneRequestPage() {
               rows={5}
               placeholder={
                 selectedMilestone
-                  ? `${selectedMilestone.name} 마일스톤이 어떻게 완료되었는지, 진행 과정과 결과를 상세히 작성해주세요.`
+                  ? `${selectedMilestone.title} 마일스톤이 어떻게 완료되었는지, 진행 과정과 결과를 상세히 작성해주세요.`
                   : "마일스톤 진행 상황을 상세히 작성해주세요."
               }
               value={description}
@@ -206,11 +229,11 @@ export default function MilestoneRequestPage() {
           {/* 송금 요청 금액 */}
           <div className="space-y-2">
             <label className="text-sm text-white/70">
-              다음 마일스톤 진행을 위한 송금 요청 금액 (원)
+              다음 마일스톤 진행을 위한 송금 요청 금액 (ETH)
             </label>
             <input
               type="number"
-              placeholder="예: 500000 (이번 단계에 필요한 금액)"
+              placeholder={selectedMilestone?.allocatedAmount.toString()}
               value={requestAmount}
               onChange={(e) => setRequestAmount(e.target.value)}
               className="w-full bg-white/10 px-4 py-3 rounded-xl border border-white/20 placeholder-white/40 focus:outline-none focus:border-cyan-400 text-sm"
