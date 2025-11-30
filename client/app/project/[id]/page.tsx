@@ -7,7 +7,10 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { GetProjectDetailResponse } from "@/types/GetProjectDetail";
 import FundingModal from "@/components/FundingModal";
-import { ethers } from "ethers";
+import { ethers, BrowserProvider } from "ethers";
+import TrustFundAbi from "@/contract/TrustFund.json";
+import { CONTRACT_ADDRESS } from "@/contstants/contract";
+import { useWeb3Auth } from "@web3auth/modal/react";
 
 export default function ProjectDetail() {
   const { id: projectId } = useParams();
@@ -15,6 +18,8 @@ export default function ProjectDetail() {
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<GetProjectDetailResponse>({} as GetProjectDetailResponse);
   const [openFunding, setOpenFunding] = useState(false);
+
+  const { provider } = useWeb3Auth();
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -31,6 +36,59 @@ export default function ProjectDetail() {
 
     fetchProject();
   }, [projectId]);
+
+   const handleFunding = async (ethAmount: number) => {
+    try {
+      if (!provider) {
+        alert("지갑이 연결되지 않았습니다.");
+        return;
+      }
+
+      console.log("📌 펀딩 시작: ", ethAmount, "ETH");
+
+      // 1) Web3Auth → ethers Signer 생성
+      const web3Provider = new BrowserProvider(provider as any);
+      await web3Provider.ready;
+      const signer = await web3Provider.getSigner();
+
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESS,
+        TrustFundAbi.abi,
+        signer
+      );
+
+      // ETH를 Wei로 변환
+      const value = ethers.parseEther(ethAmount.toString());
+
+      console.log("📌 스마트컨트랙트 호출 fundProject...");
+
+      // 2) 컨트랙트에 송금 실행
+      const tx = await contract.fundProject(Number(projectId), {
+        value: value,
+      });
+
+      await tx.wait();
+      console.log("🚀 펀딩 트랜잭션 성공:", tx.hash);
+
+      // 3) 백엔드에 펀딩 정보 저장
+      console.log("📌 백엔드에 펀딩 정보 저장...");
+      await fetch(`http://localhost:4000/api/invest/${projectId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ amount: Number(ethAmount) }),
+      });
+
+      alert("펀딩이 완료되었습니다!");
+      setOpenFunding(false);
+
+      // UI 다시 불러오기
+      location.reload();
+    } catch (err) {
+      console.error("펀딩 실패:", err);
+      alert("펀딩 중 오류가 발생했습니다.");
+    }
+  };
 
   if (loading || !project) {
     return (
@@ -151,10 +209,10 @@ export default function ProjectDetail() {
           {/* 금액 및 달성률 */}
           <div>
             <div className="text-3xl font-bold">
-              {(project.currentAmount / 10000).toFixed(1)}만 원
+              {(project.currentAmount / 10000).toFixed(1)} ETH
             </div>
             <p className="text-white/60 text-sm">
-              목표금액 {project.targetAmount.toLocaleString()}원
+              목표금액 {project.targetAmount.toLocaleString()}ETH
             </p>
           </div>
 
@@ -174,7 +232,8 @@ export default function ProjectDetail() {
 
           {/* 펀딩하기 버튼 */}
           {project.status === "FUNDING" ? (
-            <button className="w-full rounded-xl bg-white text-black font-medium py-3 hover:bg-white/90 transition">
+            <button className="w-full rounded-xl bg-white text-black font-medium py-3 hover:bg-white/90 transition"
+            onClick={() => setOpenFunding(true)}>
               펀딩 참여하기
             </button>
           ) : (
@@ -184,6 +243,13 @@ export default function ProjectDetail() {
           )}
         </aside>
       </main>
+
+      <FundingModal
+        isOpen={openFunding}
+        onClose={() => setOpenFunding(false)}
+        onSubmit={(amount) => handleFunding(amount)}
+      />
+
     </div>
   );
 }
