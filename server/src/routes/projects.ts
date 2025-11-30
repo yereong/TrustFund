@@ -2,6 +2,7 @@
 import { Router } from "express";
 import { Project } from "../models/Project";
 import { requireAuth, AuthRequest } from "../middleware/requireAuth";
+import { Investment } from "../models/Investment";
 
 const router = Router();
 
@@ -13,6 +14,7 @@ const router = Router();
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
   try {
     const {
+      chainProjectId,
       title,
       targetAmount,
       representativeImage,
@@ -340,5 +342,52 @@ router.post(
     }
   }
 );
+
+/**
+ * 프로젝트 펀딩 참여
+ *
+ * POST /api/projects/:id/fund
+ * body: { amount: number }
+ */
+router.post("/:id/fund", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const { amount } = req.body;
+
+    const walletAddress = req.auth?.walletAddress;
+    const userId = req.auth?.userId;
+
+    if (!walletAddress) {
+      return res.status(401).json({ message: "인증된 유저가 아닙니다." });
+    }
+
+    if (!amount || typeof amount !== "number" || amount <= 0) {
+      return res.status(400).json({ message: "amount는 1 이상의 숫자여야 합니다." });
+    }
+
+    // 프로젝트 존재 확인
+    const project = await Project.findById(id);
+    if (!project) {
+      return res.status(404).json({ message: "프로젝트를 찾을 수 없습니다." });
+    }
+
+    // Investment 생성
+    const funding = await Investment.create({
+      project: project._id,
+      user: userId,
+      wallet: walletAddress.toLowerCase(),
+      amount,
+    });
+
+    return res.status(201).json({
+      message: "펀딩 참여가 완료되었습니다.",
+      funding,
+    });
+  } catch (err) {
+    console.error("[POST /api/projects/:id/fund] error:", err);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
 
 export default router;

@@ -10,12 +10,12 @@ const router = Router();
  *
  * POST /api/users/info
  */
-router.post("/info", requireAuth, async (req: AuthRequest, res) => {
+router.post("/info", async (req, res) => {
   try {
     const { email, name } = req.body || {};
 
     // walletAddress는 클라이언트 body에서 읽으면 위험!
-    const walletAddress = req.auth?.walletAddress;
+    const walletAddress = req.body.walletAddress;
     if (!walletAddress) {
       return res.status(400).json({ message: "인증된 유저가 아닙니다." });
     }
