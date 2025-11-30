@@ -8,6 +8,8 @@ import type {
   FunctionFragment,
   Result,
   Interface,
+  EventFragment,
+  AddressLike,
   ContractRunner,
   ContractMethod,
   Listener,
@@ -16,6 +18,7 @@ import type {
   TypedContractEvent,
   TypedDeferredTopicFilter,
   TypedEventLog,
+  TypedLogDescription,
   TypedListener,
   TypedContractMethod,
 } from "./common";
@@ -31,6 +34,8 @@ export interface TrustFundInterface extends Interface {
       | "requestMilestone"
       | "voteMilestone"
   ): FunctionFragment;
+
+  getEvent(nameOrSignatureOrTopic: "ProjectCreated"): EventFragment;
 
   encodeFunctionData(
     functionFragment: "createProject",
@@ -86,6 +91,19 @@ export interface TrustFundInterface extends Interface {
     functionFragment: "voteMilestone",
     data: BytesLike
   ): Result;
+}
+
+export namespace ProjectCreatedEvent {
+  export type InputTuple = [projectId: BigNumberish, creator: AddressLike];
+  export type OutputTuple = [projectId: bigint, creator: string];
+  export interface OutputObject {
+    projectId: bigint;
+    creator: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export interface TrustFund extends BaseContract {
@@ -229,5 +247,24 @@ export interface TrustFund extends BaseContract {
     "nonpayable"
   >;
 
-  filters: {};
+  getEvent(
+    key: "ProjectCreated"
+  ): TypedContractEvent<
+    ProjectCreatedEvent.InputTuple,
+    ProjectCreatedEvent.OutputTuple,
+    ProjectCreatedEvent.OutputObject
+  >;
+
+  filters: {
+    "ProjectCreated(uint256,address)": TypedContractEvent<
+      ProjectCreatedEvent.InputTuple,
+      ProjectCreatedEvent.OutputTuple,
+      ProjectCreatedEvent.OutputObject
+    >;
+    ProjectCreated: TypedContractEvent<
+      ProjectCreatedEvent.InputTuple,
+      ProjectCreatedEvent.OutputTuple,
+      ProjectCreatedEvent.OutputObject
+    >;
+  };
 }

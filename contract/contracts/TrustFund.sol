@@ -24,11 +24,16 @@ contract TrustFund {
     mapping(uint256 => Project) public projects;
     uint256 public nextProjectId;
 
+    // 🔥 프로젝트 생성 이벤트
+    event ProjectCreated(uint256 indexed projectId, address indexed creator);
+
     // 1) 프로젝트 생성
     function createProject(string[] memory titles, uint256[] memory amounts) external {
         require(titles.length == amounts.length, "Length mismatch");
 
-        Project storage p = projects[nextProjectId];
+        uint256 projectId = nextProjectId;  // 현재 ID
+
+        Project storage p = projects[projectId];
         p.owner = msg.sender;
         p.exists = true;
 
@@ -39,6 +44,9 @@ contract TrustFund {
             p.milestones[i].approved = false;
             p.milestoneCount++;
         }
+
+        // 🔥 이벤트 emit (프론트에서 projectId 가져갈 수 있게!)
+        emit ProjectCreated(projectId, msg.sender);
 
         nextProjectId++;
     }

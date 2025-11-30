@@ -38,8 +38,8 @@
       ]
     },
     "F:\\desktop\\TrustFund\\TrustFund\\contract\\contracts\\TrustFund.sol": {
-      "lastModificationDate": 1764393038183,
-      "contentHash": "bf995dedce0550f2c78a894c66e75ad8",
+      "lastModificationDate": 1764399021140,
+      "contentHash": "a91b03e6529dc59bdfdfea3495b72141",
       "sourceName": "contracts/TrustFund.sol",
       "solcConfig": {
         "version": "0.8.28",
