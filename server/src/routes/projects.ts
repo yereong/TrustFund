@@ -97,14 +97,13 @@ router.get("/", async (req, res) => {
  *
  * GET /api/projects/:id
  */
-router.get("/:id", requireAuth,async (req: AuthRequest, res) => {
+router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const userId = req.auth?.userId;
     const userWallet = req.auth?.walletAddress;
-    console.log('유저아이디:', userId);
+    console.log("유저아이디:", userId);
 
-    // 🔥 여기서는 lean() 말고 Document로 가져와서 status 수정 가능하게
     const projectDoc = await Project.findById(id);
     if (!projectDoc) {
       return res.status(404).json({ message: "프로젝트를 찾을 수 없습니다." });
@@ -129,10 +128,8 @@ router.get("/:id", requireAuth,async (req: AuthRequest, res) => {
 
     // ✅ 3. isOwner 계산 (ownerUser 또는 ownerWallet 기준)
     const isOwner =
-      (
-        (userId == projectDoc.ownerUser) ||
-        (userWallet == projectDoc.ownerWallet.toLowerCase())
-      );
+      (userId == projectDoc.ownerUser) ||
+      (userWallet == projectDoc.ownerWallet.toLowerCase());
 
     // ✅ 2. hasParticipated: Investment에 기록이 있으면 true
     let hasParticipated = false;
@@ -155,11 +152,39 @@ router.get("/:id", requireAuth,async (req: AuthRequest, res) => {
       }
     }
 
-    const project = projectDoc.toObject();
+    // ⭐ 여기부터: 마일스톤별 hasVoted 계산
+    const projectObj: any = projectDoc.toObject();
+    const normalizedWallet = userWallet?.toLowerCase();
+
+    const milestonesWithHasVoted =
+      projectObj.milestones?.map((m: any) => {
+        let hasVoted = false;
+
+        if (userId || normalizedWallet) {
+          hasVoted =
+            m.votes?.some((v: any) => {
+              const votedByWallet =
+                normalizedWallet &&
+                v.voterWallet?.toLowerCase() === normalizedWallet;
+              const votedByUser =
+                userId &&
+                v.voterUser &&
+                v.voterUser.toString() === String(userId);
+
+              return votedByWallet || votedByUser;
+            }) ?? false;
+        }
+
+        return {
+          ...m,
+          hasVoted, // 👈 현재 로그인 유저가 이 마일스톤에 투표했는지 여부
+        };
+      }) ?? [];
 
     return res.status(200).json({
       project: {
-        ...project,
+        ...projectObj,
+        milestones: milestonesWithHasVoted,
         isOwner,
         hasParticipated,
         currentAmount,
@@ -170,6 +195,7 @@ router.get("/:id", requireAuth,async (req: AuthRequest, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 
 /**
  * 프로젝트 수정 (작성자만)
