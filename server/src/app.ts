@@ -9,7 +9,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:3000", // 프론트 주소
+    origin: "https://trust-fund-five.vercel.app/", // 프론트 주소
     credentials: true,               // ⭐ 쿠키 주고 받기 위해 필요
   })
 );
