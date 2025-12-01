@@ -317,7 +317,7 @@ router.post(
           .json({ message: "마일스톤을 찾을 수 없습니다." });
       }
 
-      if (milestone.status !== "REJECTED") {
+      if (milestone.status !== "APPROVED") {
         return res.status(400).json({
           message: "이미 종료된 마일스톤에는 투표할 수 없습니다.",
         });
