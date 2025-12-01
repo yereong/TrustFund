@@ -1,0 +1,95 @@
+name: Node Backend CI/CD
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backend-ci:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # package.json 에 build / test 스크립트가 없으면 그냥 건너뜀
+      - name: Run build (if present)
+        run: npm run build --if-present
+
+      - name: Run tests (if present)
+        run: npm test --if-present
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }} .
+
+      - name: Push Docker image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}
+
+  backend-cd:
+    runs-on: ubuntu-latest
+    needs: backend-ci
+    name: Deploy to EC2
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.AWS_EC2_IP }}
+          username: ${{ secrets.AWS_EC2_USERNAME }}
+          key: ${{ secrets.AWS_EC2_KEY }}
+          port: ${{ secrets.AWS_EC2_PORT }}
+          script: |
+            cd /home/ubuntu
+
+            APP_NAME=${{ secrets.DOCKER_REPO }}
+            IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}
+
+            echo "Deploy image: $IMAGE"
+
+            # 최신 이미지 pull
+            docker pull $IMAGE
+
+            # 기존 컨테이너 있으면 stop & rm
+            if [ "$(docker ps -aq -f name=$APP_NAME)" ]; then
+              echo "Stopping old container..."
+              docker stop $APP_NAME || true
+              docker rm $APP_NAME || true
+            fi
+
+            # 새 컨테이너 실행 (필요한 환경변수만 추가해서 사용)
+            echo "Starting new container..."
+            docker run -d \
+              --name $APP_NAME \
+              -e NODE_ENV=production \
+              -e TZ=Asia/Seoul \
+              -e JWT_SECRET='${{ secrets.JWT_SECRET }}' \
+              -e MONGO_URI='${{ secrets.MONGO_URI }}' \
+              -e JWT_EXPIRES_IN='${{ secrets.JWT_EXPIRES_IN }}' \
+              -e PINATA_JWT='${{ secrets.PINATA_JWT }}' \
+              -e PINATA_GATEWAY='${{ secrets.PINATA_GATEWAY }}' \
+              -p 8080:8080 \
+              $IMAGE
+
+            docker image prune -f
