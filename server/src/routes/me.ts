@@ -1,5 +1,6 @@
 // src/routes/me.ts
 import { Router } from "express";
+import mongoose from "mongoose";
 import type { AuthRequest } from "../middleware/requireAuth";
 import { requireAuth } from "../middleware/requireAuth";
 import { Project } from "../models/Project";
@@ -72,7 +73,7 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
           title: p.title,
           status: p.status, // "FUNDING" | "COMPLETED" | "CANCELLED"
           targetAmount,
-          currentAmount, // 🔥 여기 확실히 포함
+          currentAmount, // ✅ 내가 올린 프로젝트의 현재 모금액
           progress,
           createdAt: p.createdAt,
         };
@@ -90,23 +91,27 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
       ? await Investment.find({ $or: investorFilter }).lean()
       : [];
 
-    const fundedProjectIdSet = new Set<string>();
-    myInvestments.forEach((inv) => {
-      fundedProjectIdSet.add(String(inv.project));
-    });
+    // 🔥 참여한 프로젝트 id (string) 중복 제거
+    const fundedProjectIdStrings = Array.from(
+      new Set(myInvestments.map((inv) => String(inv.project)))
+    );
 
-    const fundedProjectIds = Array.from(fundedProjectIdSet);
+    // 🔥 aggregate / find 에서 쓸 ObjectId 배열로 변환
+    const fundedProjectIds = fundedProjectIdStrings.map(
+      (id) => new mongoose.Types.ObjectId(id)
+    );
 
     let myFundings: any[] = [];
 
     if (fundedProjectIds.length > 0) {
+      // 내가 참여한 프로젝트들 정보
       const fundedProjectsDocs = await Project.find({
         _id: { $in: fundedProjectIds },
       })
         .sort({ createdAt: -1 })
         .lean();
 
-      // 전체 펀딩 총액 (프로젝트별)
+      // ✅ 각 프로젝트별 전체 펀딩 총액 (currentAmount)
       const allFundingAgg = await Investment.aggregate([
         { $match: { project: { $in: fundedProjectIds } } },
         {
@@ -122,7 +127,7 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
         allFundingMap.set(String(f._id), f.total || 0);
       });
 
-      // 내가 각각 프로젝트에 넣은 금액
+      // ✅ 내가 각각의 프로젝트에 넣은 금액 합산 (myAmount)
       const myFundingMap = new Map<string, number>();
       myInvestments.forEach((inv) => {
         const key = String(inv.project);
@@ -132,9 +137,9 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
 
       myFundings = fundedProjectsDocs.map((p) => {
         const projectId = String(p._id);
-        const currentAmount = allFundingMap.get(projectId) || 0; // 🔥 전체 모금액
+        const currentAmount = allFundingMap.get(projectId) || 0; // ✅ 전체 모금액
         const targetAmount = p.targetAmount || 0;
-        const myAmount = myFundingMap.get(projectId) || 0; // 🔥 내가 넣은 금액
+        const myAmount = myFundingMap.get(projectId) || 0; // ✅ 내가 넣은 금액
 
         const progress =
           targetAmount > 0
@@ -146,7 +151,7 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
           title: p.title,
           status: p.status,
           targetAmount,
-          currentAmount, // 🔥 여기도 포함
+          currentAmount,
           myAmount,
           progress,
           createdAt: p.createdAt,
