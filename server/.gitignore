@@ -12,3 +12,4 @@
 # testing
 /coverage
 .env*
+/dist
