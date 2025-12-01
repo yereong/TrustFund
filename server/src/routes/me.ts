@@ -11,8 +11,8 @@ const router = Router();
  * 🔥 마이페이지 대시보드
  *
  * GET /api/me/dashboard
- * - 내가 올린 프로젝트 목록
- * - 내가 참여한 펀딩 목록
+ * - 내가 올린 프로젝트 목록 (currentAmount 포함)
+ * - 내가 참여한 펀딩 목록 (currentAmount, myAmount 포함)
  */
 router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -31,15 +31,18 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
     if (walletAddress) ownerFilter.push({ ownerWallet: walletAddress });
 
     const myProjectsDocs = ownerFilter.length
-      ? await Project.find({ $or: ownerFilter }).sort({ createdAt: -1 }).lean()
+      ? await Project.find({ $or: ownerFilter })
+          .sort({ createdAt: -1 })
+          .lean()
       : [];
 
-    const myProjectIds = myProjectsDocs.map((p) => p._id);
+    let myProjects: any[] = [];
 
-    // 각 프로젝트별 총 펀딩 금액 계산
-    let myProjectsFundingAgg: any[] = [];
-    if (myProjectIds.length > 0) {
-      myProjectsFundingAgg = await Investment.aggregate([
+    if (myProjectsDocs.length > 0) {
+      const myProjectIds = myProjectsDocs.map((p) => p._id);
+
+      // ✅ /api/projects 목록과 동일한 방식으로 aggregate
+      const fundingAgg = await Investment.aggregate([
         { $match: { project: { $in: myProjectIds } } },
         {
           $group: {
@@ -48,33 +51,33 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
           },
         },
       ]);
+
+      const fundingMap = new Map<string, number>();
+      fundingAgg.forEach((f: any) => {
+        fundingMap.set(String(f._id), f.total || 0);
+      });
+
+      myProjects = myProjectsDocs.map((p) => {
+        const currentAmount = fundingMap.get(String(p._id)) || 0;
+        const targetAmount = p.targetAmount || 0;
+
+        // 달성률 (0~100)
+        const progress =
+          targetAmount > 0
+            ? Math.min(100, Math.floor((currentAmount / targetAmount) * 100))
+            : 0;
+
+        return {
+          id: String(p._id),
+          title: p.title,
+          status: p.status, // "FUNDING" | "COMPLETED" | "CANCELLED"
+          targetAmount,
+          currentAmount, // 🔥 여기 확실히 포함
+          progress,
+          createdAt: p.createdAt,
+        };
+      });
     }
-
-    const myProjectsFundingMap = new Map<string, number>();
-    myProjectsFundingAgg.forEach((f: any) => {
-      myProjectsFundingMap.set(String(f._id), f.total || 0);
-    });
-
-    const myProjects = myProjectsDocs.map((p) => {
-      const currentAmount = myProjectsFundingMap.get(String(p._id)) || 0;
-      const targetAmount = p.targetAmount || 0;
-
-      // 달성률 (0~100)
-      const progress =
-        targetAmount > 0
-          ? Math.min(100, Math.floor((currentAmount / targetAmount) * 100))
-          : 0;
-
-      return {
-        id: String(p._id),
-        title: p.title,
-        status: p.status,           // "FUNDING" | "COMPLETED" | "CANCELLED"
-        targetAmount,
-        currentAmount,
-        progress,
-        createdAt: p.createdAt,
-      };
-    });
 
     /* ------------------------------------------------------------------
      * 2) 내가 참여한 펀딩들 조회
@@ -94,19 +97,17 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
 
     const fundedProjectIds = Array.from(fundedProjectIdSet);
 
-    let fundedProjectsDocs: any[] = [];
+    let myFundings: any[] = [];
+
     if (fundedProjectIds.length > 0) {
-      fundedProjectsDocs = await Project.find({
+      const fundedProjectsDocs = await Project.find({
         _id: { $in: fundedProjectIds },
       })
         .sort({ createdAt: -1 })
         .lean();
-    }
 
-    // 각 프로젝트별 총 펀딩 (전체) + 내가 넣은 금액 (myAmount) 계산
-    let allFundingAgg: any[] = [];
-    if (fundedProjectIds.length > 0) {
-      allFundingAgg = await Investment.aggregate([
+      // 전체 펀딩 총액 (프로젝트별)
+      const allFundingAgg = await Investment.aggregate([
         { $match: { project: { $in: fundedProjectIds } } },
         {
           $group: {
@@ -115,43 +116,43 @@ router.get("/dashboard", requireAuth, async (req: AuthRequest, res) => {
           },
         },
       ]);
+
+      const allFundingMap = new Map<string, number>();
+      allFundingAgg.forEach((f: any) => {
+        allFundingMap.set(String(f._id), f.total || 0);
+      });
+
+      // 내가 각각 프로젝트에 넣은 금액
+      const myFundingMap = new Map<string, number>();
+      myInvestments.forEach((inv) => {
+        const key = String(inv.project);
+        const prev = myFundingMap.get(key) || 0;
+        myFundingMap.set(key, prev + (inv.amount || 0));
+      });
+
+      myFundings = fundedProjectsDocs.map((p) => {
+        const projectId = String(p._id);
+        const currentAmount = allFundingMap.get(projectId) || 0; // 🔥 전체 모금액
+        const targetAmount = p.targetAmount || 0;
+        const myAmount = myFundingMap.get(projectId) || 0; // 🔥 내가 넣은 금액
+
+        const progress =
+          targetAmount > 0
+            ? Math.min(100, Math.floor((currentAmount / targetAmount) * 100))
+            : 0;
+
+        return {
+          id: projectId,
+          title: p.title,
+          status: p.status,
+          targetAmount,
+          currentAmount, // 🔥 여기도 포함
+          myAmount,
+          progress,
+          createdAt: p.createdAt,
+        };
+      });
     }
-
-    const allFundingMap = new Map<string, number>();
-    allFundingAgg.forEach((f: any) => {
-      allFundingMap.set(String(f._id), f.total || 0);
-    });
-
-    // 내가 각각의 프로젝트에 넣은 금액 합산
-    const myFundingMap = new Map<string, number>();
-    myInvestments.forEach((inv) => {
-      const key = String(inv.project);
-      const prev = myFundingMap.get(key) || 0;
-      myFundingMap.set(key, prev + (inv.amount || 0));
-    });
-
-    const myFundings = fundedProjectsDocs.map((p) => {
-      const projectId = String(p._id);
-      const currentAmount = allFundingMap.get(projectId) || 0;
-      const targetAmount = p.targetAmount || 0;
-      const myAmount = myFundingMap.get(projectId) || 0;
-
-      const progress =
-        targetAmount > 0
-          ? Math.min(100, Math.floor((currentAmount / targetAmount) * 100))
-          : 0;
-
-      return {
-        id: projectId,
-        title: p.title,
-        status: p.status,       // "FUNDING" | "COMPLETED" | "CANCELLED"
-        targetAmount,
-        currentAmount,
-        myAmount,               // 🔥 내가 이 프로젝트에 넣은 금액
-        progress,
-        createdAt: p.createdAt,
-      };
-    });
 
     /* ------------------------------------------------------------------
      * 3) 리턴
