@@ -12,7 +12,7 @@ const isProd = process.env.NODE_ENV === "production";
 const cookieOptions: CookieOptions = {
   httpOnly: true,
   secure: isProd,                // 로컬에서는 false, 배포 시 true(https)
-  sameSite: "lax",
+  sameSite: "none",
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7일
   path: "/",
 };
