@@ -109,7 +109,7 @@ export default function MainPage() {
                 ? Math.min(100, (p.currentAmount / p.targetAmount) * 100)
                 : 0);
 
-            const amountDisplay = p.currentAmount ?? p.targetAmount ?? 0;
+            const amountDisplay = p.currentAmount || 0;
 
             return (
               <motion.div
@@ -142,7 +142,7 @@ export default function MainPage() {
 
                   <p className="text-sm text-white/70">
                     {progress.toFixed(1)}% 달성 ·{" "}
-                    {(amountDisplay / 10000).toFixed(1)}만원
+                    {p.currentAmount}ETH
                   </p>
                 </div>
               </motion.div>
