@@ -16,24 +16,6 @@ export default function MobileNav({ isOpen, onNavigate }: MobileNavProps) {
           전체
         </button>
         <button
-          onClick={() => onNavigate("/popular")}
-          className="text-left hover:text-white transition"
-        >
-          인기
-        </button>
-        <button
-          onClick={() => onNavigate("/new")}
-          className="text-left hover:text-white transition"
-        >
-          신규
-        </button>
-        <button
-          onClick={() => onNavigate("/categories")}
-          className="text-left hover:text-white transition"
-        >
-          카테고리
-        </button>
-        <button
           onClick={() => onNavigate("/mypage")}
           className="text-left hover:text-white transition"
         >
