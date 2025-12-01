@@ -421,6 +421,8 @@ router.post(
       milestone.requestSent = true;
       milestone.requestAt = new Date();
 
+      milestone.status = "APPROVED";
+
       await project.save();
 
       return res.status(200).json({
