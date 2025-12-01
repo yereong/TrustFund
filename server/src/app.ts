@@ -6,11 +6,22 @@ import cookieParser from "cookie-parser";
 import routes from "./routes";
 
 const app = express();
+const allowedOrigins = [
+  "https://trust-fund-five.vercel.app",
+  "http://localhost:3000",
+];
 
 app.use(
   cors({
-    origin: "https://trust-fund-five.vercel.app/", // 프론트 주소
-    credentials: true,               // ⭐ 쿠키 주고 받기 위해 필요
+    origin(origin, callback) {
+      // Postman 같은 비브라우저 요청은 origin이 없을 수 있어서 허용
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      console.log("❌ CORS 차단 origin:", origin);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
   })
 );
 
