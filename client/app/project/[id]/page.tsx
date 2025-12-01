@@ -261,7 +261,7 @@ export default function ProjectDetail() {
 
           <div>
             <div className="text-3xl font-bold">
-              {(project.currentAmount / 10000).toFixed(1)} ETH
+              {project.currentAmount} ETH
             </div>
             <p className="text-white/60 text-sm">
               목표금액 {project.targetAmount.toLocaleString()}ETH
