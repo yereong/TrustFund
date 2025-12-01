@@ -18,6 +18,7 @@ export default function CreateProject() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [targetAmount, setTargetAmount] = useState(0);
+  const serverApiUrl = process.env.NEXT_SERVER_API_URL || "https://3.38.41.124.nip.io";
 
    const addMilestone = () => {
     setMilestones([...milestones, { id: Date.now(), name: "", amount: "" }]);
@@ -91,7 +92,7 @@ export default function CreateProject() {
         const imgForm = new FormData();
         imgForm.append("file", thumbnailFile);
 
-        const imgRes = await fetch("http://localhost:4000/api/upload/image", {
+        const imgRes = await fetch(`${serverApiUrl}/api/upload/image`, {
           method: "POST",
           body: imgForm,
           credentials: "include",
@@ -154,7 +155,7 @@ export default function CreateProject() {
         })),
       };
 
-      const res = await fetch("http://localhost:4000/api/projects", {
+      const res = await fetch(`${serverApiUrl}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

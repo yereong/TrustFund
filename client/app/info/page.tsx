@@ -14,11 +14,11 @@ export default function InfoPage() {
   const { provider } = useWeb3Auth();
   const { isConnected } = useWeb3AuthConnect();
   const { userInfo } = useWeb3AuthUser();
-
   const [nickname, setNickname] = useState("");
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const serverApiUrl = process.env.NEXT_SERVER_API_URL || "https://3.38.41.124.nip.io";
 
   // 초기값: Web3Auth userInfo 로부터 가져오기
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function InfoPage() {
 
       console.log("전송할 프로필 데이터:", payload);
       // 3) 백엔드로 전송 (기존 /api/auth/web3 upsert 로직 재사용)
-      const res = await fetch("http://localhost:4000/api/users/info", {
+      const res = await fetch(`${serverApiUrl}/api/users/info`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

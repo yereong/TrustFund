@@ -19,6 +19,7 @@ export default function ProjectDetail() {
     {} as GetProjectDetailResponse
   );
   const [openFunding, setOpenFunding] = useState(false);
+  const serverApiUrl = process.env.NEXT_SERVER_API_URL || "https://3.38.41.124.nip.io";
 
   // 🔥 펀딩 진행 상태
   const [isFunding, setIsFunding] = useState(false);
@@ -30,7 +31,7 @@ export default function ProjectDetail() {
     const fetchProject = async () => {
       try {
         const res = await fetch(
-          `http://localhost:4000/api/projects/${projectId}`,
+          `${serverApiUrl}/api/projects/${projectId}`,
           {
             credentials: "include",
           }
@@ -103,7 +104,7 @@ export default function ProjectDetail() {
       // 3) 백엔드에 펀딩 정보 저장
       setFundingStatus("✅ 온체인 펀딩 성공! 백엔드에 기록 중...");
       console.log("📌 백엔드에 펀딩 정보 저장...");
-      await fetch(`http://localhost:4000/api/projects/${project._id}/fund`, {
+      await fetch(`${serverApiUrl}/api/projects/${project._id}/fund`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

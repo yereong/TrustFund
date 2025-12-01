@@ -22,6 +22,7 @@ export default function MilestoneRequestPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params?.id;
+  const serverApiUrl = process.env.NEXT_SERVER_API_URL || "https://3.38.41.124.nip.io";
 
   const searchParams = useSearchParams();
   const initialmilestoneId = searchParams.get("milestoneId");
@@ -47,7 +48,7 @@ export default function MilestoneRequestPage() {
     const fetchProject = async () => {
       try {
         const res = await fetch(
-          `http://localhost:4000/api/projects/${projectId}`,
+          `${serverApiUrl}/api/projects/${projectId}`,
           {
             credentials: "include",
           }
@@ -146,7 +147,7 @@ export default function MilestoneRequestPage() {
         const imgForm = new FormData();
         imgForm.append("file", uploadedFile.file);
 
-        const imgRes = await fetch("http://localhost:4000/api/upload/image", {
+        const imgRes = await fetch(`${serverApiUrl}/api/upload/image`, {
           method: "POST",
           body: imgForm,
           credentials: "include",
@@ -163,7 +164,7 @@ export default function MilestoneRequestPage() {
 
       // 2️⃣ 백엔드에 완료 보고 내용 + 증빙 URL 저장
       const res = await fetch(
-        `http://localhost:4000/api/projects/${projectId}/milestones/${selectedMilestoneId}/request-completion`,
+        `${serverApiUrl}/api/projects/${projectId}/milestones/${selectedMilestoneId}/request-completion`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

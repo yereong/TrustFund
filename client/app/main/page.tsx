@@ -11,7 +11,7 @@ const PAGE_SIZE = 9;
 
 export default function MainPage() {
   const router = useRouter();
-
+  const serverApiUrl = process.env.NEXT_SERVER_API_URL || "https://3.38.41.124.nip.io";
   const [projects, setProjects] = useState<Project[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -31,7 +31,7 @@ export default function MainPage() {
       setErrorMessage(null);
 
       const res = await fetch(
-        `http://localhost:4000/api/projects?page=${page}&limit=${PAGE_SIZE}`,
+        `${serverApiUrl}/api/projects?page=${page}&limit=${PAGE_SIZE}`,
         {
           method: "GET",
           credentials: "include",
