@@ -465,11 +465,17 @@ router.get(
           .json({ message: "마일스톤을 찾을 수 없습니다." });
       }
 
-      // 투표 페이지에서 필요로 하는 정보들만 정리해서 반환
+      // 🔥 컨트랙트 호출용 인덱스 (0-base)
+      const milestoneIndex = project.milestones.findIndex(
+        (m: any) => m._id.toString() === milestoneId
+      );
+
       return res.status(200).json({
         projectId: project._id,
         projectTitle: project.title,
-        chainProjectId: project.chainProjectId,
+        chainProjectId: project.chainProjectId, // 온체인 projectId
+
+        milestoneIndex, // ✅ 컨트랙트 voteMilestone에 넘길 index
 
         milestone: {
           _id: milestone._id,
@@ -477,11 +483,9 @@ router.get(
           order: milestone.order,
           description: milestone.description,
 
-          // 🔥 창작자가 request-completion에서 저장한 값들
           completionDetail: milestone.completionDetail,
           proofUrl: milestone.proofUrl,
 
-          // 투표/상태 정보
           status: milestone.status,
           requestSent: milestone.requestSent,
           requestAt: milestone.requestAt,
@@ -501,6 +505,7 @@ router.get(
     }
   }
 );
+
 
 
 /**
