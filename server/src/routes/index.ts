@@ -4,6 +4,7 @@ import authRouter from "./auth";
 import usersRouter from "./users";
 import projectsRouter from "./projects";
 import uploadRouter from "./upload";
+import meRouter from "./me";
 
 const router = Router();
 
@@ -17,6 +18,6 @@ router.use("/auth", authRouter);
 router.use("/users", usersRouter);
 router.use("/projects", projectsRouter);
 router.use("/upload", uploadRouter);
-
+router.use("/me", meRouter);
 
 export default router;
