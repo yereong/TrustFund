@@ -36,7 +36,10 @@ export interface TrustFundInterface extends Interface {
   ): FunctionFragment;
 
   getEvent(
-    nameOrSignatureOrTopic: "MilestoneRequested" | "ProjectCreated"
+    nameOrSignatureOrTopic:
+      | "MilestonePayout"
+      | "MilestoneRequested"
+      | "ProjectCreated"
   ): EventFragment;
 
   encodeFunctionData(
@@ -93,6 +96,28 @@ export interface TrustFundInterface extends Interface {
     functionFragment: "voteMilestone",
     data: BytesLike
   ): Result;
+}
+
+export namespace MilestonePayoutEvent {
+  export type InputTuple = [
+    projectId: BigNumberish,
+    milestoneId: BigNumberish,
+    amount: BigNumberish
+  ];
+  export type OutputTuple = [
+    projectId: bigint,
+    milestoneId: bigint,
+    amount: bigint
+  ];
+  export interface OutputObject {
+    projectId: bigint;
+    milestoneId: bigint;
+    amount: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace MilestoneRequestedEvent {
@@ -265,6 +290,13 @@ export interface TrustFund extends BaseContract {
   >;
 
   getEvent(
+    key: "MilestonePayout"
+  ): TypedContractEvent<
+    MilestonePayoutEvent.InputTuple,
+    MilestonePayoutEvent.OutputTuple,
+    MilestonePayoutEvent.OutputObject
+  >;
+  getEvent(
     key: "MilestoneRequested"
   ): TypedContractEvent<
     MilestoneRequestedEvent.InputTuple,
@@ -280,6 +312,17 @@ export interface TrustFund extends BaseContract {
   >;
 
   filters: {
+    "MilestonePayout(uint256,uint256,uint256)": TypedContractEvent<
+      MilestonePayoutEvent.InputTuple,
+      MilestonePayoutEvent.OutputTuple,
+      MilestonePayoutEvent.OutputObject
+    >;
+    MilestonePayout: TypedContractEvent<
+      MilestonePayoutEvent.InputTuple,
+      MilestonePayoutEvent.OutputTuple,
+      MilestonePayoutEvent.OutputObject
+    >;
+
     "MilestoneRequested(uint256,uint256)": TypedContractEvent<
       MilestoneRequestedEvent.InputTuple,
       MilestoneRequestedEvent.OutputTuple,

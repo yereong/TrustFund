@@ -88,6 +88,7 @@ contract TrustFund {
     }
 
     // 4) 참여자 투표
+    event MilestonePayout(uint256 indexed projectId, uint256 indexed milestoneId, uint256 amount);
     function voteMilestone(uint256 projectId, uint256 milestoneId, bool approve) external {
         Project storage p = projects[projectId];
         require(p.exists, "Project not found");
@@ -95,16 +96,33 @@ contract TrustFund {
         require(p.contributions[msg.sender] > 0, "Not funder");
 
         Milestone storage m = p.milestones[milestoneId];
-        require(m.requested, "Not requested yet");  
+
+        require(m.requested, "Not requested yet");
         require(!m.voted[msg.sender], "Already voted");
+        require(!m.completed, "Already completed");
 
         m.voted[msg.sender] = true;
 
-        if (approve) m.yesVotes += 1;
-        else m.noVotes += 1;
+        if (approve) {
+            m.yesVotes += 1;
+        } else {
+            m.noVotes += 1;
+        }
 
-        if (m.yesVotes * 2 > p.funderCount) {
+        // 🔥 과반(yesVotes * 2 > funderCount) 처음 넘어가는 순간
+        // 자동으로 approved + completed + 송금까지 진행
+        if (!m.approved && (m.yesVotes * 2 > p.funderCount)) {
             m.approved = true;
+            m.completed = true;
+
+            uint256 amount = m.allocatedAmount;
+            require(amount > 0, "No allocation");
+            require(address(this).balance >= amount, "Not enough ETH");
+
+            (bool ok, ) = p.owner.call{value: amount}("");
+            require(ok, "Transfer failed");
+
+            emit MilestonePayout(projectId, milestoneId, amount);
         }
     }
 
