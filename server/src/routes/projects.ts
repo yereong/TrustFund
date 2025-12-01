@@ -440,6 +440,70 @@ router.post(
 );
 
 /**
+ * 마일스톤 완료 보고 조회 (투표 페이지용)
+ *
+ * GET /api/projects/:projectId/milestones/:milestoneId/completion-info
+ */
+router.get(
+  "/:projectId/milestones/:milestoneId/completion-info",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const { projectId, milestoneId } = req.params;
+
+      const project: any = await Project.findById(projectId);
+      if (!project) {
+        return res
+          .status(404)
+          .json({ message: "프로젝트를 찾을 수 없습니다." });
+      }
+
+      const milestone = project.milestones.id(milestoneId);
+      if (!milestone) {
+        return res
+          .status(404)
+          .json({ message: "마일스톤을 찾을 수 없습니다." });
+      }
+
+      // 투표 페이지에서 필요로 하는 정보들만 정리해서 반환
+      return res.status(200).json({
+        projectId: project._id,
+        projectTitle: project.title,
+        chainProjectId: project.chainProjectId,
+
+        milestone: {
+          _id: milestone._id,
+          title: milestone.title,
+          order: milestone.order,
+          description: milestone.description,
+
+          // 🔥 창작자가 request-completion에서 저장한 값들
+          completionDetail: milestone.completionDetail,
+          proofUrl: milestone.proofUrl,
+
+          // 투표/상태 정보
+          status: milestone.status,
+          requestSent: milestone.requestSent,
+          requestAt: milestone.requestAt,
+
+          yesCount: milestone.yesCount,
+          noCount: milestone.noCount,
+          yesAmount: milestone.yesAmount,
+          noAmount: milestone.noAmount,
+        },
+      });
+    } catch (err) {
+      console.error(
+        "[GET /api/projects/:projectId/milestones/:milestoneId/completion-info] error:",
+        err
+      );
+      return res.status(500).json({ message: "Internal Server Error" });
+    }
+  }
+);
+
+
+/**
  * 프로젝트 펀딩 참여 (온체인 완료 후 기록용)
  *
  * POST /api/projects/:id/fund

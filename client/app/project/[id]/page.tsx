@@ -208,7 +208,7 @@ export default function ProjectDetail() {
                   !project.isOwner &&
                   project.hasParticipated &&
                   m.requestSent &&
-                  !(m.status === "APPROVED");
+                  (m.status === "APPROVED");
 
                 return (
                   <div
@@ -243,7 +243,7 @@ export default function ProjectDetail() {
                     ) : showVoteAction ? (
                       <Link
                         href={`/project/${project._id}/vote?milestoneId=${m._id}`}
-                        className="text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+                        className="bg-emerald-900 w-17 text-center rounded-2xl p-1 px-2 ml-5 text-xs font-normal text-white hover:text-emerald-300"
                       >
                         투표하기
                       </Link>
