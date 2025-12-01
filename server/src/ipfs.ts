@@ -32,12 +32,10 @@ export const uploadToIPFS = async (fileBuffer: Buffer, fileName: string) => {
     console.log("[Pinata] 업로드 성공:", res.data);
 
     const cid = res.data.IpfsHash;
-    const gateway =
-      process.env.PINATA_GATEWAY || "https://gateway.pinata.cloud/ipfs/";
-
+    
     return {
       cid,
-      url: `${gateway}${cid}`,
+      url: `https://ipfs.io/ipfs/${cid}`,
     };
   } catch (err) {
     // 🔍 디버깅용 상세 로그
