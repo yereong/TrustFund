@@ -168,11 +168,10 @@ export default function ProjectDetail() {
           {/* 썸네일 */}
           <div className="relative w-full h-80 rounded-2xl overflow-hidden border border-white/10 bg-white/5">
             {project.representativeImage ? (
-              <Image
+              <img
                 src={project.representativeImage}
                 alt="thumbnail"
-                fill
-                className="object-cover"
+                className="object-cover w-full h-full"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-white/40 text-sm">
