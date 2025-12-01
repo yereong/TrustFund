@@ -8,6 +8,7 @@ export type GetProjectDetailResponse = {
         _id: string;
         title: string;
         allocatedAmount: number;
+        hasVoted: boolean;
         noAmount: number;
         noCount: number;
         order: number;

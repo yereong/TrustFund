@@ -208,7 +208,8 @@ export default function ProjectDetail() {
                   !project.isOwner &&
                   project.hasParticipated &&
                   m.requestSent &&
-                  (m.status === "APPROVED");
+                  (m.status === "APPROVED")&&
+                  !m.hasVoted;
 
                 return (
                   <div
