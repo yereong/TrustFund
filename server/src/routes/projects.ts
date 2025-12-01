@@ -79,18 +79,58 @@ router.get("/", async (req, res) => {
       filter.status = status;
     }
 
+    // 1) 프로젝트 목록 조회
     const projects = await Project.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
       .lean();
 
-    return res.status(200).json({ projects });
+    // 프로젝트가 없으면 바로 반환
+    if (projects.length === 0) {
+      return res.status(200).json({ projects: [] });
+    }
+
+    // 2) 현재 페이지의 프로젝트 id들 추출
+    const projectIds = projects.map((p) => p._id);
+
+    // 3) Investment에서 각 프로젝트별 총 펀딩 금액 집계
+    const fundingAgg = await Investment.aggregate([
+      { $match: { project: { $in: projectIds } } },
+      {
+        $group: {
+          _id: "$project",
+          total: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    // 4) projectId -> totalFunding 매핑
+    const fundingMap = new Map<string, number>();
+    fundingAgg.forEach((f: any) => {
+      fundingMap.set(String(f._id), f.total || 0);
+    });
+
+    // 5) 각 프로젝트에 currentAmount 필드 붙이기
+    const projectsWithFunding = projects.map((p) => {
+      const currentAmount = fundingMap.get(String(p._id)) || 0;
+      return {
+        ...p,
+        // targetAmount는 기존 스키마에 이미 있으니까 유지
+        targetAmount: p.targetAmount,
+        currentAmount, // 🔥 목록에서도 현재 펀딩 금액
+      };
+    });
+
+    return res.status(200).json({
+      projects: projectsWithFunding,
+    });
   } catch (err) {
     console.error("[GET /api/projects] error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 
 /**
  * 프로젝트 상세 조회
