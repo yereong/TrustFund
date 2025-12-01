@@ -12,52 +12,63 @@ import {
 } from "@web3auth/modal/react";
 import { ethers } from "ethers";
 
-// 더미 데이터
-const myProjects = [
-  {
-    id: 1,
-    title: "친환경 재활용 텀블러 프로젝트",
-    progress: 72,
-    amount: 1440000,
-    status: "펀딩 모집중",
-  },
-  {
-    id: 2,
-    title: "스마트 IoT 반려동물 급식기",
-    progress: 100,
-    amount: 2000000,
-    status: "완료됨",
-  },
-];
+type MyProject = {
+  id: string;
+  title: string;
+  status: "FUNDING" | "COMPLETED" | "CANCELLED" | string;
+  targetAmount: number;
+  currentAmount: number;
+  progress: number; // 0~100
+  createdAt?: string;
+};
 
-const myFundings = [
-  {
-    id: 3,
-    title: "휴대용 미니 공기청정기",
-    progress: 88,
-    amount: 2200000,
-    status: "모집 완료",
-  },
-  {
-    id: 4,
-    title: "업사이클링 패브릭 가방",
-    progress: 40,
-    amount: 800000,
-    status: "펀딩 모집중",
-  },
-];
+type MyFunding = {
+  id: string;
+  title: string;
+  status: "FUNDING" | "COMPLETED" | "CANCELLED" | string;
+  targetAmount: number;
+  currentAmount: number; // 전체 모금액
+  myAmount: number; // 내가 넣은 금액
+  progress: number;
+  createdAt?: string;
+};
 
 export default function MyPage() {
   const { userInfo } = useWeb3AuthUser();
   const { disconnect } = useWeb3AuthDisconnect();
-  const [activeTab, setActiveTab] = useState<"myProjects" | "myFundings" | "profile">("myProjects");
-  const router = useRouter();
   const { provider } = useWeb3Auth();
+  const router = useRouter();
+
+  const [activeTab, setActiveTab] = useState<
+    "myProjects" | "myFundings" | "profile"
+  >("myProjects");
 
   const [wallet, setWallet] = useState<string>("");
   const [balance, setBalance] = useState<string>("0");
   const [loadingBalance, setLoadingBalance] = useState(false);
 
+  const [myProjects, setMyProjects] = useState<MyProject[]>([]);
+  const [myFundings, setMyFundings] = useState<MyFunding[]>([]);
+  const [loadingDashboard, setLoadingDashboard] = useState(true);
+
+  const serverApiUrl =
+    process.env.NEXT_SERVER_API_URL || "https://3.38.41.124.nip.io";
+
+  // 🔹 상태 한글 변환
+  const renderStatus = (status: string) => {
+    switch (status) {
+      case "FUNDING":
+        return "펀딩 모집중";
+      case "COMPLETED":
+        return "완료됨";
+      case "CANCELLED":
+        return "취소됨";
+      default:
+        return status;
+    }
+  };
+
+  // 🔹 지갑 주소 + 잔액 조회
   const loadWalletInfo = async () => {
     try {
       if (!provider) return;
@@ -82,7 +93,41 @@ export default function MyPage() {
   // 마이페이지 방문 시 자동으로 지갑 정보 로드
   useEffect(() => {
     loadWalletInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
+
+  // 🔹 마이페이지 대시보드 API 호출 (내 프로젝트 / 참여 펀딩)
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        const res = await fetch(`${serverApiUrl}/api/me/dashboard`, {
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          throw new Error(
+            errData?.message || "마이페이지 정보를 불러오지 못했습니다."
+          );
+        }
+
+        const data = await res.json();
+        console.log("마이페이지 대시보드 데이터:", data);
+        setMyProjects(data.myProjects || []);
+        setMyFundings(data.myFundings || []);
+      } catch (err: any) {
+        console.error("마이페이지 대시보드 로드 실패:", err);
+        alert(
+          err.message ??
+            "마이페이지 정보를 불러오는 중 오류가 발생했습니다."
+        );
+      } finally {
+        setLoadingDashboard(false);
+      }
+    };
+
+    fetchDashboard();
+  }, [serverApiUrl]);
 
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-white font-[Inter]">
@@ -121,13 +166,13 @@ export default function MyPage() {
               </div>
             </div>
 
-            {/* 👇 지갑 주소 */}
+            {/* 지갑 주소 */}
             <div className="mt-5 p-3 bg-white/5 rounded-xl border border-white/10 text-xs break-all">
               <div className="text-white/60 mb-1">지갑 주소</div>
               <div className="text-white">{wallet || "연결 중..."}</div>
             </div>
 
-            {/* 👇 잔액 */}
+            {/* 잔액 */}
             <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-xs mt-3">
               <div className="flex items-center justify-between">
                 <span className="text-white/60">ETH 잔액</span>
@@ -143,7 +188,7 @@ export default function MyPage() {
                 {loadingBalance ? "조회중..." : `${balance} ETH`}
               </div>
 
-              {/*충전 버튼*/}
+              {/* 테스트넷 충전 버튼 */}
               <button
                 onClick={() => {
                   if (!wallet) return alert("지갑 주소를 찾을 수 없습니다.");
@@ -156,31 +201,39 @@ export default function MyPage() {
               </button>
             </div>
 
-
             {/* 요약 통계 */}
             <div className="mt-5 grid grid-cols-3 gap-3 text-center text-sm">
               <div className="p-3 bg-white/5 rounded-xl border border-white/10">
                 <div className="text-xs text-white/60 mb-1">올린 글</div>
-                <div className="text-lg font-semibold">{myProjects.length}</div>
+                <div className="text-lg font-semibold">
+                  {myProjects.length}
+                </div>
               </div>
               <div className="p-3 bg-white/5 rounded-xl border border-white/10">
                 <div className="text-xs text-white/60 mb-1">참여 펀딩</div>
-                <div className="text-lg font-semibold">{myFundings.length}</div>
+                <div className="text-lg font-semibold">
+                  {myFundings.length}
+                </div>
               </div>
               <div className="p-3 bg-white/5 rounded-xl border border-white/10">
                 <div className="text-xs text-white/60 mb-1">완료 프로젝트</div>
                 <div className="text-lg font-semibold">
-                  {myProjects.filter((p) => p.status === "완료됨").length}
+                  {myProjects.filter((p) => p.status === "COMPLETED").length}
                 </div>
               </div>
             </div>
 
             <button
-              onClick={() => { disconnect(); router.push('/'); }}
-              className="mt-5 w-full flex items-center justify-center gap-2 text-sm text-white/70 bg-white/5 border border-white/20 rounded-xl py-2 hover:bg-white/10 transition"
+              onClick={() => {
+                disconnect();
+                router.push("/");
+              }}
+              className="w-full"
             >
-              <LogOut size={16} />
-              로그아웃
+              <div className="mt-5 w-full flex items-center justify-center gap-2 text-sm text-white/70 bg-white/5 border border-white/20 rounded-xl py-2 hover:bg-white/10 transition">
+                <LogOut size={16} />
+                로그아웃
+              </div>
             </button>
           </div>
         </section>
@@ -224,103 +277,119 @@ export default function MyPage() {
           {/* 탭별 내용 */}
           {activeTab === "myProjects" && (
             <div className="space-y-4">
-              {myProjects.length === 0 && (
+              {loadingDashboard && (
+                <div className="text-sm text-white/60">로딩 중...</div>
+              )}
+
+              {!loadingDashboard && myProjects.length === 0 && (
                 <div className="text-sm text-white/60">
                   아직 등록한 프로젝트가 없습니다.
                 </div>
               )}
 
-              {myProjects.map((p) => (
-                <motion.div
-                  key={p.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 hover:bg-white/10 transition"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-semibold text-sm md:text-base">
-                      {p.title}
-                    </h3>
-                    <span className="text-xs px-3 py-1 rounded-full bg-white/10 border border-white/20">
-                      {p.status}
-                    </span>
-                  </div>
+              {!loadingDashboard &&
+                myProjects.map((p) => (
+                  <motion.div
+                    key={p.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 hover:bg-white/10 transition"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-semibold text-sm md:text-base">
+                        {p.title}
+                      </h3>
+                      <span className="text-xs px-3 py-1 rounded-full bg-white/10 border border-white/20">
+                        {renderStatus(p.status)}
+                      </span>
+                    </div>
 
-                  <div className="w-full h-2 bg-white/15 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-cyan-400 to-indigo-500"
-                      style={{ width: `${p.progress}%` }}
-                    />
-                  </div>
+                    <div className="w-full h-2 bg-white/15 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-400 to-indigo-500"
+                        style={{ width: `${p.progress}%` }}
+                      />
+                    </div>
 
-                  <div className="flex items-center justify-between text-xs text-white/70">
-                    <span>{p.progress}% 달성</span>
-                    <span>{(p.amount / 10000).toFixed(1)}만원 모금</span>
-                  </div>
+                    <div className="flex items-center justify-between text-xs text-white/70">
+                      <span>{p.progress}% 달성</span>
+                      <span>
+                        {(p.currentAmount / 10000).toFixed(1)}만원 모금
+                      </span>
+                    </div>
 
-                  <div className="flex gap-2 justify-end">
-                    <Link
-                      href={`/project/${p.id}`}
-                      className="text-xs px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20"
-                    >
-                      상세 보기
-                    </Link>
-                    <button className="flex items-center gap-1 text-xs px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">
-                      <Edit3 size={14} />
-                      수정하기
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
+                    <div className="flex gap-2 justify-end">
+                      <Link
+                        href={`/project/${p.id}`}
+                        className="text-xs px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20"
+                      >
+                        상세 보기
+                      </Link>
+                      <button className="flex items-center gap-1 text-xs px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20">
+                        <Edit3 size={14} />
+                        수정하기
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
             </div>
           )}
 
           {activeTab === "myFundings" && (
             <div className="space-y-4">
-              {myFundings.length === 0 && (
+              {loadingDashboard && (
+                <div className="text-sm text-white/60">로딩 중...</div>
+              )}
+
+              {!loadingDashboard && myFundings.length === 0 && (
                 <div className="text-sm text-white/60">
                   아직 참여한 펀딩이 없습니다.
                 </div>
               )}
 
-              {myFundings.map((p) => (
-                <motion.div
-                  key={p.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 hover:bg-white/10 transition"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-semibold text-sm md:text-base">
-                      {p.title}
-                    </h3>
-                    <span className="text-xs px-3 py-1 rounded-full bg-white/10 border border-white/20">
-                      {p.status}
-                    </span>
-                  </div>
+              {!loadingDashboard &&
+                myFundings.map((p) => (
+                  <motion.div
+                    key={p.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 hover:bg-white/10 transition"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-semibold text-sm md:text-base">
+                        {p.title}
+                      </h3>
+                      <span className="text-xs px-3 py-1 rounded-full bg-white/10 border border-white/20">
+                        {renderStatus(p.status)}
+                      </span>
+                    </div>
 
-                  <div className="w-full h-2 bg-white/15 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-cyan-400 to-indigo-500"
-                      style={{ width: `${p.progress}%` }}
-                    />
-                  </div>
+                    <div className="w-full h-2 bg-white/15 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-400 to-indigo-500"
+                        style={{ width: `${p.progress}%` }}
+                      />
+                    </div>
 
-                  <div className="flex items-center justify-between text-xs text-white/70">
-                    <span>{p.progress}% 달성</span>
-                    <span>{(p.amount / 10000).toFixed(1)}만원 모금</span>
-                  </div>
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between text-xs text-white/70 gap-1 md:gap-0">
+                      <span>{p.progress}% 달성</span>
+                      <span>
+                        전체 모금:{" "}
+                        {p.currentAmount}ETH / 내 참여:{" "}
+                        {p.myAmount}ETH
+                      </span>
+                    </div>
 
-                  <div className="flex justify-end">
-                    <Link
-                      href={`/project/${p.id}`}
-                      className="text-xs px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20"
-                    >
-                      프로젝트 보기
-                    </Link>
-                  </div>
-                </motion.div>
-              ))}
+                    <div className="flex justify-end">
+                      <Link
+                        href={`/project/${p.id}`}
+                        className="text-xs px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20"
+                      >
+                        프로젝트 보기
+                      </Link>
+                    </div>
+                  </motion.div>
+                ))}
             </div>
           )}
 
