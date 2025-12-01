@@ -11,6 +11,7 @@ import {
   useWeb3Auth,
 } from "@web3auth/modal/react";
 import { BrowserProvider } from "ethers";
+const serverApiUrl = process.env.NEXT_SERVER_API_URL || "https://3.38.41.124.nip.io";
 
 export default function Home() {
   const { connect, loading, isConnected, error, } = useWeb3AuthConnect();
@@ -41,7 +42,7 @@ export default function Home() {
         };
 
         // 3) 백엔드로 전송
-        const res = await fetch("http://localhost:4000/api/auth/web3", {
+        const res = await fetch(`${serverApiUrl}/api/auth/web3`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
