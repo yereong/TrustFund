@@ -8,37 +8,67 @@ import { useRouter } from "next/navigation";
 import { useWeb3Auth } from "@web3auth/modal/react";
 import { createProject as createProjectOnChain } from "@/utils/contractActions";
 
+type MilestoneForm = {
+  id: number;
+  name: string;
+  amount: string; // 입력은 문자열로 관리
+};
+
 export default function CreateProject() {
   const router = useRouter();
   const { provider, status } = useWeb3Auth();
 
-  const [milestones, setMilestones] = useState([{ id: 1, name: "", amount: "" }]);
+  const [milestones, setMilestones] = useState<MilestoneForm[]>([
+    { id: 1, name: "", amount: "" },
+  ]);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [targetAmount, setTargetAmount] = useState(0);
-  const serverApiUrl = process.env.NEXT_SERVER_API_URL || "https://3.38.41.124.nip.io";
 
-   const addMilestone = () => {
-    setMilestones([...milestones, { id: Date.now(), name: "", amount: "" }]);
+  const serverApiUrl =
+    process.env.NEXT_SERVER_API_URL || "https://3.38.41.124.nip.io";
+
+  /* --------------------------------
+   * 🔢 합계 재계산 공통 함수
+   * -------------------------------- */
+  const recalcTargetAmount = (list: MilestoneForm[]) => {
+    const sum = list.reduce((acc, cur) => {
+      const n = Number(cur.amount);
+      return acc + (isNaN(n) ? 0 : n);
+    }, 0);
+    setTargetAmount(sum);
   };
 
-  const updateMilestone = (id: number, key: "name" | "amount", value: string) => {
+  const addMilestone = () => {
+    const updated = [
+      ...milestones,
+      { id: Date.now(), name: "", amount: "" },
+    ];
+    setMilestones(updated);
+    // 새 마일스톤은 amount가 비어 있으니 합계에는 영향 X지만 일단 호출해도 무방
+    recalcTargetAmount(updated);
+  };
+
+  const updateMilestone = (
+    id: number,
+    key: "name" | "amount",
+    value: string
+  ) => {
     const updated = milestones.map((m) =>
       m.id === id ? { ...m, [key]: value } : m
     );
 
     setMilestones(updated);
-
-    const sum = updated.reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    setTargetAmount(sum);
+    recalcTargetAmount(updated);
   };
 
   const removeMilestone = (id: number) => {
-    setMilestones(milestones.filter((m) => m.id !== id));
+    const updated = milestones.filter((m) => m.id !== id);
+    setMilestones(updated);
+    recalcTargetAmount(updated);
   };
-
 
   // 이미지 파일 선택 시 미리보기 URL 생성
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,10 +162,6 @@ export default function CreateProject() {
 
       console.log("⛓ chain projectId:", onChain.projectId);
 
-      // if (onChain.projectId == null) {
-      //   throw new Error("컨트랙트 ProjectCreated 이벤트를 읽지 못했습니다.");
-      // }
-
       const chainProjectId = onChain.projectId;
 
       /* -------------------------------------------------
@@ -143,7 +169,7 @@ export default function CreateProject() {
       ------------------------------------------------- */
       const payload = {
         title,
-        targetAmount,
+        targetAmount, // 🔥 마일스톤 amount 합계
         expectedCompletionDate: expectedEnd || undefined,
         description,
         representativeImage,
@@ -151,7 +177,7 @@ export default function CreateProject() {
         milestones: milestones.map((m, idx) => ({
           title: m.name,
           order: idx + 1,
-          allocatedAmount: Number(m.amount),
+          allocatedAmount: Number(m.amount) || 0,
         })),
       };
 
@@ -260,13 +286,11 @@ export default function CreateProject() {
             <input
               type="number"
               name="targetAmount"
-              value={targetAmount}
+              value={targetAmount === 0 ? "" : Number(targetAmount.toFixed(6))}
               disabled
-              className="w-full bg-white/10 px-4 py-3 rounded-xl border border-white/20 text-white
-                        placeholder-white/40 opacity-60 cursor-not-allowed"
+              className="w-full bg-white/10 px-4 py-3 rounded-xl border border-white/20 text-white placeholder-white/40 opacity-60 cursor-not-allowed"
             />
           </div>
-
 
           {/* 예상 완료 기한 */}
           <div className="space-y-2">
@@ -278,64 +302,63 @@ export default function CreateProject() {
             />
           </div>
 
-        {/* 마일스톤 */}
-        <div className="space-y-3">
-          <label className="text-sm text-white/70">마일스톤</label>
-
+          {/* 마일스톤 */}
           <div className="space-y-3">
-            {milestones.map((m, idx) => (
-              <motion.div
-                key={m.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-3"
-              >
-                {/* 마일스톤 이름 */}
-                <input
-                  type="text"
-                  placeholder={`마일스톤 ${idx + 1} 이름`}
-                  value={m.name}
-                  onChange={(e) =>
-                    updateMilestone(m.id, "name", e.target.value)
-                  }
-                  className="flex-1 bg-white/10 px-4 py-3 rounded-xl border border-white/20 placeholder-white/40 focus:outline-none focus:border-indigo-400"
-                />
+            <label className="text-sm text-white/70">마일스톤</label>
 
-                {/* 필요 금액 */}
-                <input
-                  type="number"
-                  placeholder="필요 금액 (ETH)"
-                  value={m.amount}
-                  onChange={(e) =>
-                    updateMilestone(m.id, "amount", e.target.value)
-                  }
-                  className="w-40 bg-white/10 px-4 py-3 rounded-xl border border-white/20 placeholder-white/40 focus:outline-none focus:border-cyan-400"
-                />
+            <div className="space-y-3">
+              {milestones.map((m, idx) => (
+                <motion.div
+                  key={m.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-3"
+                >
+                  {/* 마일스톤 이름 */}
+                  <input
+                    type="text"
+                    placeholder={`마일스톤 ${idx + 1} 이름`}
+                    value={m.name}
+                    onChange={(e) =>
+                      updateMilestone(m.id, "name", e.target.value)
+                    }
+                    className="flex-1 bg-white/10 px-4 py-3 rounded-xl border border-white/20 placeholder-white/40 focus:outline-none focus:border-indigo-400"
+                  />
 
-                {/* 삭제 */}
-                {milestones.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeMilestone(m.id)}
-                    className="p-2 bg-white/10 border border-white/20 rounded-xl hover:bg-red-500/20 transition"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                )}
-              </motion.div>
-            ))}
+                  {/* 필요 금액 */}
+                  <input
+                    type="number"
+                    placeholder="필요 금액 (ETH)"
+                    value={m.amount}
+                    onChange={(e) =>
+                      updateMilestone(m.id, "amount", e.target.value)
+                    }
+                    className="w-40 bg-white/10 px-4 py-3 rounded-xl border border-white/20 placeholder-white/40 focus:outline-none focus:border-cyan-400"
+                  />
+
+                  {/* 삭제 */}
+                  {milestones.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeMilestone(m.id)}
+                      className="p-2 bg-white/10 border border-white/20 rounded-xl hover:bg-red-500/20 transition"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+
+            {/* 마일스톤 추가 */}
+            <button
+              type="button"
+              onClick={addMilestone}
+              className="flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 mt-2"
+            >
+              <Plus size={16} /> 마일스톤 추가
+            </button>
           </div>
-
-          {/* 마일스톤 추가 */}
-          <button
-            type="button"
-            onClick={addMilestone}
-            className="flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 mt-2"
-          >
-            <Plus size={16} /> 마일스톤 추가
-          </button>
-        </div>
-
 
           {/* 설명 */}
           <div className="space-y-2">
@@ -352,7 +375,7 @@ export default function CreateProject() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-white text-black py-4 rounded-xl font-semibold hover:bg-white/90 disabled:opacity-60 disabled:cursor-not-allowed transition"
+            className="w-full bg_WHITE text-black py-4 rounded-xl font-semibold hover:bg-white/90 disabled:opacity-60 disabled:cursor-not-allowed transition"
           >
             {submitting ? "등록 중..." : "프로젝트 등록하기"}
           </button>
