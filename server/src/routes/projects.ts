@@ -97,7 +97,7 @@ router.get("/", async (req, res) => {
  *
  * GET /api/projects/:id
  */
-router.get("/:id", async (req: AuthRequest, res) => {
+router.get("/:id", requireAuth,async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const userId = req.auth?.userId;
